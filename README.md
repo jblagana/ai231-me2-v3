@@ -16,16 +16,6 @@ on **ONNX Runtime (CPU)**. No ASR, no LLM, no cloud round-trip.
 > Group-meeting scope (19 intents, Option B) is in
 > [`data/meeting_summary_2026-10-02.txt`](data/meeting_summary_2026-10-02.txt).
 
-## Quick links (the working docs)
-| File | What |
-|---|---|
-| [`INSTRUCTIONS.md`](INSTRUCTIONS.md) | verbatim instruction log (newest first) |
-| [`DECISIONS.md`](DECISIONS.md) | ratified decisions + rationale |
-| [`JOURNAL.md`](JOURNAL.md) | dated story |
-| [`BENCHMARK.md`](BENCHMARK.md) | pre-registered targets + canonical run numbers |
-| [`SUBMISSION.md`](SUBMISSION.md) | public/submission tracker (repo, DOI, weights, checklist) |
-| [`slides_data.json`](slides_data.json) | single source of truth for the deck |
-
 ## Repo map
 ```
 src/        commands.py (20 classes / 93 phrases) · slots.py (18 values / 6 heads)
@@ -66,10 +56,10 @@ train 10,733 · test 4,443 · holdout 202 · numerals 66,390 (re-frozen JFS rev
   ```
 - The frozen split exports (metadata, no audio) are committed at `data/manifests/`.
 - Each audio source keeps its own license (CC BY 4.0 / CC0 / non-commercial
-  academic / own); see [`SUBMISSION.md`](SUBMISSION.md) §2. Research + education use.
+  academic / own); research + education use.
 
 ## 3. Train (one command)
-The frozen protocol is in [`BENCHMARK.md`](BENCHMARK.md). On the A100 node:
+On the A100 node:
 ```bash
 screen -S vcm_v3          # run under screen; the job is ~25-40 h at 100 epochs
 bash scripts/train.sh     # == tools/train.py --run v3r1 --arch bcresnet --epochs 100 ...
@@ -104,15 +94,14 @@ The Pi assistant must write one JSON line per command to
 `audio_ms` (= 3000). See the harness README for the exact contract.
 
 ## 6. Results
-Pre-registered targets + any run numbers live in
-[`BENCHMARK.md`](BENCHMARK.md); the run writes `runs/v3r1/results.json`.
+The run writes `runs/v3r1/results.json` (with per-class and slot-confusion CSVs).
 
 ## 7. Reproduce the deck
 ```bash
 pip install python-pptx
 python scripts/build_slides.py      # -> slides/me2_v3_submission.pptx
 ```
-Fill the `pending` fields in `slides_data.json` (see `SUBMISSION.md` §6), then rebuild.
+Edit `slides_data.json`, then rebuild.
 
 ## License
 MIT — see [`LICENSE`](LICENSE). The dataset is separate and governed by its own

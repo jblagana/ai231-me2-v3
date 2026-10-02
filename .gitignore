@@ -5,7 +5,7 @@ data/*
 !data/manifests/
 !data/mel_buffers/
 
-# training outputs / checkpoints — released separately (see SUBMISSION.md)
+# training outputs / checkpoints — released separately
 runs/
 *.pt
 *.onnx
@@ -23,4 +23,11 @@ hf_cache/
 *.flag
 .DS_Store
 Thumbs.db
+
+# internal working docs (local only, not in the public repo)
+BENCHMARK.md
+DECISIONS.md
+INSTRUCTIONS.md
+JOURNAL.md
+SUBMISSION.md
 
