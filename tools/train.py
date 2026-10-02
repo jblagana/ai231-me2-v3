@@ -164,12 +164,11 @@ def precompute_clean(ds, features, path: Path, log):
         return (i, xi, yi, HEAD_IDX[sc] if sc is not None else -1, si,
                 meta["duration_s"], int(meta["oos"]))
 
-    if n > 5000:
-        import multiprocessing as mp
-        with mp.get_context("fork").Pool(16) as pool:
-            got = pool.imap_unordered(work, range(n))
-    else:
-        got = map(work, range(n))
+    # The fork-Pool path is disabled: `work` is a local closure and is not
+    # picklable, so Pool.imap_unordered raises "Can't pickle local object".
+    # Sequential map is correct at every split size; the npz is cached, so the
+    # 66 k numerals split only costs ~6 min once.
+    got = map(work, range(n))
     for (i, xi, yi, hi, si, di, oi) in got:
         x[i] = xi
         y[i] = yi
