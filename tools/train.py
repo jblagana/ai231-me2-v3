@@ -47,7 +47,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from commands import CLASSES                        # noqa: E402
 from dataset import OOS_IDX, V3Dataset, class_weight_vector  # noqa: E402
 from features import (IN_SAMPLES, Features, decode_wav_bytes,  # noqa: E402
-                      mix_noise)
+                      mix_noise, speech_end_window)
 from models import build_model, param_count          # noqa: E402
 from slots import PARAMETRIC, SLOT_COUNTS            # noqa: E402
 
@@ -219,8 +219,9 @@ def precompute_robust(ds, features, snrs, run_dir: Path, seed: int, log):
             xi = int(rng.integers(len(bank)))
             a = bank[xi]
             s = int(rng.integers(len(a) - IN_SAMPLES + 1))
-            noisy = mix_noise(wav, a[s:s + IN_SAMPLES], float(snr))
-            x[i] = features.clean(noisy, t1=meta["t1"])
+            xw = speech_end_window(wav, meta["t1"])
+            noisy = mix_noise(xw, a[s:s + IN_SAMPLES], float(snr))
+            x[i] = features.mel(noisy)
             y[i] = cmd
             oos[i] = int(meta["oos"])
             dur[i] = meta["duration_s"]

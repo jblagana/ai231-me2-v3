@@ -460,3 +460,20 @@ github.com/airimonda/vcm-benchmark)
   `.venv` (numpy/pandas/pyarrow only) runs the data tools (export/audit/
   dataset smoke).
 
+## Bug fix: precompute_robust noise-mix shape (run 1 launch, 10-02)
+- tools/train.py precompute_robust mixed MUSAN onto the FULL decoded clip
+  (up to 5.0 s) and windowed only AFTER, but mix_noise requires same-length
+  operands (the noise slice is IN_SAMPLES = 3.0 s) -> ValueError on the first
+  >3.0 s test clip. So every full run that includes the SNR 20/10/5 robustness
+  eval crashed before epoch 1. A defect in the frozen pipeline, NOT a protocol
+  change (the metric was always intended; the noise was applied to the wrong
+  length operand).
+- Fix mirrors the TRAIN path exactly (window -> noise -> mel):
+  xw = speech_end_window(wav, t1) (always returns IN_SAMPLES=48000), then
+  noisy = mix_noise(xw, a[s:s+IN_SAMPLES], snr), then x = features.mel(noisy).
+  Same-length by construction; consistent with the >=3.0 s MUSAN bank (MUSAN
+  note above) and with Features.train. Import of speech_end_window added.
+- Validated before launch: py_compile OK + synthetic 5.0 s clip ->
+  window (48000,) noisy (48000,) (no broadcast error). v3r1 launched 10-02
+  on n003 GPU 0 with this fix (100 epochs, seed 20261002).
+
