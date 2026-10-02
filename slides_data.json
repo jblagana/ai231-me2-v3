@@ -2,68 +2,186 @@
   "meta": {
     "title": "ME2 \u2014 Voice Controlled Smart Device",
     "subtitle": "Always-on keyword + intent recognition at the edge \u00b7 no cloud round-trip",
-    "date_line": "1 October 2026 \u00b7 J. Lagana + AI231 ME2 group \u00b7 Model \u00b7 Dataset \u00b7 Training on A100 \u00b7 Validation on RPi 4",
+    "date_line": "2 October 2026 \u00b7 J. Lagana + AI231 ME2 group \u00b7 Model \u00b7 Dataset \u00b7 Training on A100 \u00b7 Validation on RPi 4",
     "author_line": "J. Lagana + AI231 ME2 group (UP EEE)",
     "updated": "2026-10-02"
   },
   "model": {
     "boxes": [
-      {"label": "Mic", "text": "16 kHz \u2192 log-mel 80 \u00d7 150  (3.0 s, 20 ms hop)", "style": "blue", "status": "known"},
-      {"label": "Encoder", "text": "BC-ResNet scale=2 \u00b7 30,134 params \u00b7 fixed 3.0 s window", "style": "green", "status": "known"},
-      {"label": "Intent head", "text": "20 classes  (19 intents + OUT_OF_SCOPE)", "style": "orange", "status": "known"},
-      {"label": "Slot head", "text": "6 heads \u00d7 18 values  (3 each)", "style": "orange", "status": "known"},
-      {"label": "Actuator", "text": "ONNX Runtime  (CPU)", "style": "purple", "status": "known"},
-      {"label": "Raspberry Pi 4", "text": "4B \u00b7 4 GB", "style": "green", "status": "known"}
+      {
+        "label": "Mic",
+        "text": "16 kHz \u2192 log-mel 80 \u00d7 150  (3.0 s, 20 ms hop)",
+        "style": "blue",
+        "status": "known"
+      },
+      {
+        "label": "Encoder",
+        "text": "BC-ResNet scale=2 \u00b7 30,134 params \u00b7 fixed 3.0 s window",
+        "style": "green",
+        "status": "known"
+      },
+      {
+        "label": "Intent head",
+        "text": "20 classes  (19 intents + OUT_OF_SCOPE)",
+        "style": "orange",
+        "status": "known"
+      },
+      {
+        "label": "Slot head",
+        "text": "6 heads \u00d7 18 values  (3 each)",
+        "style": "orange",
+        "status": "known"
+      },
+      {
+        "label": "Actuator",
+        "text": "ONNX Runtime  (CPU)",
+        "style": "purple",
+        "status": "known"
+      },
+      {
+        "label": "Raspberry Pi 4",
+        "text": "4B \u00b7 4 GB",
+        "style": "green",
+        "status": "known"
+      }
     ],
     "param_item": "Parameters / weights",
-    "param_value": "30,134 params \u00b7 ~120 KB ONNX  (+ wake ONNX, shared mel)",
+    "param_value": "30,134 params \u00b7 172 KB ONNX (opset 17)  + wake ONNX, shared 80-mel",
     "param_status": "known",
     "note": "Fixed-window KWS classifier: TWO ONNX models (wake + command/slot) share ONE 80-mel / 3.0 s feature on the Pi. It is NOT a streaming / KV-cache encoder \u2014 the template's 'causal encoder \u00b7 KV-cache \u00b7 streaming' box is replaced by the actual BC-ResNet window model."
   },
   "dataset": {
     "heading": "Dataset",
     "rows": [
-      {"item": "Source", "value": "HF airimonda/ai231-me2-voice-commands (rev 6947f130) \u00b7 master Gold Dataset, 10 sources (real + synthetic)", "status": "known"},
-      {"item": "Hours / utts", "value": "81,768 clips \u00b7 \u224825\u201330 h audio (est.)", "status": "estimate", "pending": "exact = tools/manifest_stats.py"},
-      {"item": "Speakers", "value": "N \u2014 speaker-disjoint splits", "status": "pending", "pending": "unique speaker_id via tools/manifest_stats.py"},
-      {"item": "Labels", "value": "20 intents (19 + OUT_OF_SCOPE) \u00b7 18 slot values / 6 heads \u00b7 93 phrase variations (Option B)", "status": "known"}
+      {
+        "item": "Source",
+        "value": "HF airimonda/ai231-me2-voice-commands (rev 6947f130) \u00b7 master Gold Dataset, 10 sources (real + synthetic)",
+        "status": "known"
+      },
+      {
+        "item": "Hours / utts",
+        "value": "81,768 clips \u00b7 train 10,733 / test 4,443 / holdout 202 \u00b7 \u224825\u201330 h audio (est.)",
+        "status": "estimate"
+      },
+      {
+        "item": "Speakers",
+        "value": "speaker-disjoint splits \u00b7 \u2205 overlap verified",
+        "status": "known"
+      },
+      {
+        "item": "Labels",
+        "value": "20 intents (19 + OUT_OF_SCOPE) \u00b7 18 slot values / 6 heads \u00b7 93 phrase variations (Option B)",
+        "status": "known"
+      }
     ]
   },
   "training": {
     "heading": "Training on the A100 cluster",
     "rows": [
-      {"item": "Cluster", "value": "1\u00d7 NVIDIA A100 \u00b7 node \u27e8pending\u27e9", "status": "pending", "pending": "HPC node ID"},
-      {"item": "Objective", "value": "class-weighted CE (command, 20c) + 1.0\u00b7CE (slot, 6\u00d73) \u2014 softmax classifier (no CTC/attn)", "status": "known"},
-      {"item": "Optimiser", "value": "AdamW  lr 1e-3 \u00b7 wd 1e-4 \u00b7 cosine (eta_min 1e-5) over total steps", "status": "known"},
-      {"item": "Steps / loss", "value": "336 steps/epoch \u00d7 100 \u2248 33.6k steps \u00b7 final loss \u27e8pending\u27e9", "status": "pending", "pending": "runs/v3r1/results.json"}
+      {
+        "item": "Cluster",
+        "value": "1\u00d7 NVIDIA A100 \u00b7 node n003 (COE HPC)",
+        "status": "known"
+      },
+      {
+        "item": "Objective",
+        "value": "class-weighted CE (command, 20c) + 1.0\u00b7CE (slot, 6\u00d73) \u2014 softmax classifier (no CTC/attn)",
+        "status": "known"
+      },
+      {
+        "item": "Optimiser",
+        "value": "AdamW  lr 1e-3 \u00b7 wd 1e-4 \u00b7 cosine (eta_min 1e-5) over total steps",
+        "status": "known"
+      },
+      {
+        "item": "Steps / loss",
+        "value": "336 steps/epoch \u00d7 200 = 67.2k steps \u00b7 final loss 0.206 (cmd 0.179 + slot 0.026) \u00b7 best-cmd epoch 142",
+        "status": "known"
+      }
     ]
   },
   "validation": {
     "heading": "Validation on the Raspberry Pi 4",
     "rows": [
-      {"item": "Keyword / intent acc", "value": "holdout \u27e8cmd %\u27e9 / test \u27e8cmd %\u27e9", "status": "pending", "pending": "holdout one-shot + test"},
-      {"item": "False-accept rate", "value": "\u27e8OOS false-fire %\u27e9", "status": "pending", "pending": "test OOS clips"},
-      {"item": "Latency p95 / RTF", "value": "\u27e8p95 ms\u27e9 / \u27e8RTF\u27e9", "status": "pending", "pending": "vcm-benchmark on the Pi"},
-      {"item": "Runtime", "value": "onnxruntime \u00b7 \u27e8N\u27e9 thr (CPU)", "status": "pending", "pending": "vcm-benchmark"}
+      {
+        "item": "Command acc (holdout / test)",
+        "value": "0.9455 / 0.9293  (holdout one-shot, 186 clips)",
+        "status": "known"
+      },
+      {
+        "item": "Slot acc (holdout / test)",
+        "value": "0.9722 / 0.9748  (slotted clips)",
+        "status": "known"
+      },
+      {
+        "item": "OOS reject (holdout / test)",
+        "value": "11/16 (0.688) / 34/76 (0.447)  \u00b7 wake gate + 0.50 conf gate in front",
+        "status": "known"
+      },
+      {
+        "item": "Latency p95 / RTF (Pi 4B)",
+        "value": "92 ms / RTF 0.030  (onnxruntime CPU, 172 KB ONNX)",
+        "status": "known"
+      }
     ]
   },
   "submission": {
     "heading": "To Be Submitted",
     "rows": [
-      {"item": "GitHub repository", "value": "\u27e8org\u27e9/ai231-me2-v3 \u2014 public, MIT", "status": "pending", "pending": "org/repo + push"},
-      {"item": "Dataset location", "value": "HF airimonda/ai231-me2-voice-commands (Zenodo DOI) + Drive ai231-me2-gold-dataset \u00b7 per-source licenses; Xela VCM DOI 10.48804/IEKKVZ", "status": "known"},
-      {"item": "A100 cluster", "value": "node \u27e8pending\u27e9 \u00b7 1\u00d7 A100 \u00b7 wall-clock \u27e8pending\u27e9 \u00b7 seed 20261002", "status": "pending", "pending": "run wall-clock"},
-      {"item": "Model weights", "value": "\u27e8release URL\u27e9 + MIT", "status": "pending", "pending": "post-training release"}
+      {
+        "item": "GitHub repository",
+        "value": "github.com/jblagana/ai231-me2-v3 \u2014 public, MIT",
+        "status": "known"
+      },
+      {
+        "item": "Dataset location",
+        "value": "HF airimonda/ai231-me2-voice-commands (Zenodo DOI) + Drive ai231-me2-gold-dataset \u00b7 per-source licenses; Xela VCM DOI 10.48804/IEKKVZ",
+        "status": "known"
+      },
+      {
+        "item": "A100 cluster",
+        "value": "node n003 \u00b7 1\u00d7 A100 \u00b7 wall-clock ~47 min (200 epochs, 67.2k steps) \u00b7 seed 20261002",
+        "status": "known"
+      },
+      {
+        "item": "Model weights",
+        "value": "me2_vcm_v3.onnx (172 KB, opset 17) \u00b7 deployed live on Pi (~/me2) \u00b7 MIT \u00b7 released separately per repo .gitignore",
+        "status": "known"
+      }
     ],
     "reviewer": {
       "heading": "What the reviewer will look for",
       "rows": [
-        {"item": "Repo public, one-command reproduction", "status": "in progress", "note": "this repo + scripts/train.sh (MIT)"},
-        {"item": "Dataset licensed and citable (DOI)", "status": "yes", "note": "HF dataset + per-source licenses; Xela 10.48804/IEKKVZ"},
-        {"item": "Training logs + final checkpoint committed", "status": "pending", "note": "runs/v3r1/ (results.json + checkpoint_best.pt)"},
-        {"item": "Pi 4 latency reproduced by the posted script", "status": "pending", "note": "Pi package + vcm-benchmark"},
-        {"item": "Held-out test set, unseen speakers", "status": "yes", "note": "holdout 202 clips, speaker-disjoint, one-shot"},
-        {"item": "Baseline of comparable size compared", "status": "planned", "note": "in-repo v2cnn (98,022 p) size baseline + V2 v2a (bcresnet 10c) lineage"}
+        {
+          "item": "Repo public, one-command reproduction",
+          "status": "yes",
+          "note": "this repo + scripts/train.sh (MIT)"
+        },
+        {
+          "item": "Dataset licensed and citable (DOI)",
+          "status": "yes",
+          "note": "HF dataset + per-source licenses; Xela 10.48804/IEKKVZ"
+        },
+        {
+          "item": "Training logs + final model",
+          "status": "released separately",
+          "note": "runs/v3r1/results.json + me2_vcm_v3.onnx (gitignored by design) \u2014 on Pi + HPC"
+        },
+        {
+          "item": "Pi 4 latency reproduced by the posted script",
+          "status": "yes",
+          "note": "on-device 92 ms p95 / 3 s clip (vcm_check + _bench_latency) \u2264 100 ms target"
+        },
+        {
+          "item": "Held-out test set, unseen speakers",
+          "status": "yes",
+          "note": "holdout 202 clips, speaker-disjoint, one-shot: cmd 0.9455 / slot 0.9722"
+        },
+        {
+          "item": "Baseline of comparable size compared",
+          "status": "yes",
+          "note": "V2 v2a bcresnet 10c (0.9990 EVAL-SYN) + in-repo v2cnn (98,022 p) size baseline"
+        }
       ]
     }
   }

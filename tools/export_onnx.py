@@ -33,13 +33,20 @@ N_CLASSES = len(CLASSES)                # 20
 
 
 class ExportWrapper(nn.Module):
-    """Single graph -> (command_logits, slot_<head1>, ..., slot_<head6>)."""
+    """Single graph -> (command_logits, slot_<head1>, ..., slot_<head6>).
+
+    The Pi feature is (B, 80, 150) log-mel (mel.py); the BC-ResNet consumes
+    (B, 1, 80, 150), so insert the channel dim here. Keeping the ONNX input at
+    (B, 80, 150) means the shipped Pi mel.py / pi_demo.py are unchanged.
+    """
 
     def __init__(self, model):
         super().__init__()
         self.model = model
 
     def forward(self, x):
+        if x.dim() == 3:
+            x = x.unsqueeze(1)
         cmd, slot_feat = self.model(x)
         outs = [cmd]
         for name in PARAMETRIC:
@@ -73,11 +80,22 @@ def main() -> int:
     input_names = ["mel"]
     output_names = ["command_logits"] + [f"slot_{n}" for n in PARAMETRIC]
 
-    torch.onnx.export(
-        wrapper, (example,), out,
-        input_names=input_names, output_names=output_names,
-        opset_version=args.opset, verbose=False,
-    )
+    # Prefer the legacy TorchScript exporter (dynamo=False): stable across
+    # torch 2.x and does not require onnxscript (the dynamo exporter does).
+    try:
+        torch.onnx.export(
+            wrapper, (example,), out,
+            input_names=input_names, output_names=output_names,
+            opset_version=args.opset, verbose=False,
+            dynamo=False,
+        )
+    except TypeError:
+        # torch < 2.1 has no `dynamo` kwarg (legacy exporter is the default).
+        torch.onnx.export(
+            wrapper, (example,), out,
+            input_names=input_names, output_names=output_names,
+            opset_version=args.opset, verbose=False,
+        )
     size_kb = out.stat().st_size / 1024
     with torch.no_grad():
         touts = wrapper(example)
@@ -105,7 +123,8 @@ def main() -> int:
             print("verify skipped: onnxruntime not installed")
             return 0
         sess = ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
-        x = np.random.default_rng(0).standard_normal((4, 80, 150)).astype(np.float32)
+        # input is fixed-shape (1, 80, 150) — the Pi always feeds one clip
+        x = np.random.default_rng(0).standard_normal((1, 80, 150)).astype(np.float32)
         o_onnx = sess.run(None, {"mel": x})
         with torch.no_grad():
             o_torch = wrapper(torch.from_numpy(x))
