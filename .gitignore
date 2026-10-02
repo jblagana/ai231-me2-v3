@@ -1,0 +1,26 @@
+# data corpus (4 GB) — gitignored; small metadata artifacts stay tracked
+data/*
+!data/*.txt
+!data/*.xlsx
+!data/manifests/
+!data/mel_buffers/
+
+# training outputs / checkpoints — released separately (see SUBMISSION.md)
+runs/
+*.pt
+*.onnx
+models/
+
+# third-party benchmark — clone separately (see README); avoid a drifting copy
+third_party/
+*.zip
+
+# env / caches / OS
+__pycache__/
+*.pyc
+.venv/
+hf_cache/
+*.flag
+.DS_Store
+Thumbs.db
+

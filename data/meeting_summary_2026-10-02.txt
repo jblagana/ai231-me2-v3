@@ -1,0 +1,27 @@
+Ano ang mga napagkasunduan:
+Gagawing basis ang Dataset Schema ni Sir Mark para sa 
+Labeling ng ating 19 intents (and slots for some intents).
+Model Inference. Ang mga phrases sa tatlong variations ang gagamitin as benchmark para malaman kung maganda ang performance ng VCM natin (sa demo).
+Link to the Dataset Schema: Dataset Schema (Option B)
+Gagamitin ang lahat ng nalukom at na-generate na dataset para sa model training/validation/testing.
+Mga links sa Dataset: 
+AI231 ME2
+From Sir Mark: https://github.com/markandrian30/AI231/tree/main/MEX2/Data
+From Ma’am Ailene: AI231-ME2-Voice-Data
+Iko-collate ni Ma’am Ailene ang lahat ng ito sa iisang Google Drive na magsisilbing source nating lahat sa klase (at ni Prof. Atienza kapagka mag-review na siya sa ating outputs). Mayroong master manifest file na gagawin upang mas organisado ang lahat ng dataset na ito. Magiging fixed na rin ang ating test set para sa model inference na gagawin.
+Link sa Master Dataset 
+Google Drive: ai231-me2-gold-dataset
+HuggingFace: https://huggingface.co/datasets/airimonda/ai231-me2-voice-commands
+Documentation sa Master Dataset:
+https://claude.ai/artifact/PPNHMWd5rx9qcXTdcukV7s
+Access Path ng Master Dataset sa DGX Cluster [TBA]:
+Mga links na ibinahagi ng mga kaklase ukol sa pag-generate ng synthetic audio:
+https://www.naturalreaders.com/online/
+https://github.com/Martinnavs/simple-audio-transcriber
+https://github.com/Martinnavs/AI-231-Machine-Exercises/tree/ME2/ME2
+https://github.com/QwenAudio/CosyVoice
+Link sa recording ng meeting (at iba pang files): https://up-edu.zoom.us/rec/share/nrPYMrtnktA1tBEjaaGKvBeDEmeJHm6U-iLlLuVK1h2STyoPMGc4gURgeuCl8z5i.uUom9AyIJAQE-ttS
+VCM Data From Xela Ubalde (Already in Sheets):
+https://drive.google.com/file/d/1miLmuozdojOylqD0xlfOwXAdNsbGYwfN/view?usp=sharing 
+Hello do we have the DGX Cluster path for the dataset? Thanks!
+Status: Sent an email to SHARCHPC on how to access the dataset in DGX. Awaiting response.

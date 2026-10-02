@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ME2 V3 — Pipelines: Training (HPC) + End-to-End System (RPi 4B)</title>
+<style>
+  :root{
+    --bg:#f6f8fa; --panel:#ffffff; --panel2:#f6f8fa; --line:#d0d7de;
+    --txt:#1f2328; --dim:#57606a; --accent:#0969da;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --c-data:#656d76; --c-feat:#0969da; --c-train:#1a7f37; --c-sel:#9a6700;
+    --c-eval:#8250df; --c-exp:#cf222e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0 auto;background:var(--bg);color:var(--txt);max-width:1100px;
+       font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       padding:36px 26px 70px}
+  h1{font-size:27px;margin:0 0 6px;letter-spacing:-.01em}
+  h2{font-size:20px;margin:0 0 4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .meta{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0}
+  .meta .m{font-size:12px;color:var(--dim);background:var(--panel);border:1px solid var(--line);
+           border-radius:6px;padding:3px 10px;box-shadow:0 1px 2px rgba(31,35,40,.04)}
+  .meta .m b{color:var(--txt)}
+  .sub{color:var(--dim);margin:12px 0 0;font-size:15px;max-width:920px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 28px}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:20px;
+        padding:5px 13px;font-size:13px;box-shadow:0 1px 2px rgba(31,35,40,.04)}
+  .chip b{color:var(--accent);font-weight:600}
+  .sec{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+       padding:22px 20px 24px;margin-bottom:28px;
+       box-shadow:0 1px 3px rgba(31,35,40,.06)}
+  .sec-sub{color:var(--dim);font-size:13.5px;margin:0 0 18px}
+  .flow{display:flex;flex-direction:column}
+  .arrow{display:flex;justify-content:center;align-items:center;gap:8px;
+         color:#8c959f;font-size:17px;line-height:1;padding:6px 0}
+  .arrow .alab{font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .stage{position:relative;border:1px solid #d8dee4;border-left:4px solid var(--c-data);
+         border-radius:10px;background:#ffffff;padding:12px 16px 13px;
+         box-shadow:0 1px 2px rgba(31,35,40,.04)}
+  .stage .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+  .stage .lbl{font-weight:700;font-size:15px}
+  .shape{font-family:var(--mono);font-size:11.5px;background:#f6f8fa;border:1px solid var(--line);
+         border-radius:6px;padding:2px 8px;color:var(--accent);white-space:nowrap}
+  .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+       background:#eaeef2;border:1px solid var(--line);border-radius:5px;padding:2px 8px;color:var(--dim)}
+  .rows{margin-top:9px;display:flex;flex-direction:column;gap:4px}
+  .r{font-size:13.5px;padding-left:14px;position:relative}
+  .r::before{content:"·";position:absolute;left:1px;color:#8c959f;font-weight:700}
+  .r code{font-family:var(--mono);font-size:12px;background:#f6f8fa;border:1px solid var(--line);
+          border-radius:4px;padding:0 5px;color:#0550ae}
+  .r .t{color:var(--dim)}
+  .cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  .cols3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px}
+  @media(max-width:900px){.cols2,.cols3{grid-template-columns:1fr}}
+  .lane{border:1px dashed #d0d7de;border-radius:9px;padding:11px 13px;background:#f6f8fa}
+  .lane h4{margin:0 0 8px;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim)}
+  .lane h4 b{color:var(--txt);letter-spacing:0;text-transform:none;font-size:13px}
+  .s-feat{border-left-color:var(--c-feat)}
+  .s-train{border-left-color:var(--c-train)}
+  .s-sel{border-left-color:var(--c-sel)}
+  .s-eval{border-left-color:var(--c-eval)}
+  .s-exp{border-left-color:var(--c-exp)}
+  .s-mic{border-left-color:var(--c-data)}
+  .s-onnx{border-left-color:var(--c-feat)}
+  .s-gate{border-left-color:var(--c-sel)}
+  .s-act{border-left-color:var(--c-train)}
+  .ok{color:#1a7f37;font-weight:600}.warn{color:#9a6700;font-weight:600}.bad{color:#cf222e;font-weight:600}
+  .loopnote{margin-top:11px;border:1px dashed #c9d1d9;border-radius:9px;padding:9px 13px;
+            font-size:12.5px;color:var(--dim);background:#f6f8fa}
+  .loopnote b{color:var(--txt)}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+  th,td{text-align:left;padding:6px 9px;border-bottom:1px solid #eaeef2}
+  th{color:var(--dim);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}
+  td.num,th.num{text-align:right;font-family:var(--mono);font-size:12.5px}
+  .hl{color:var(--accent)}
+  .k{font-family:var(--mono);background:#f6f8fa;border:1px solid var(--line);border-radius:5px;
+     padding:1px 6px;color:#0550ae;font-size:11.5px}
+  .legend{display:grid;grid-template-columns:1fr 1fr;gap:9px 18px;margin-top:14px}
+  @media(max-width:700px){.legend{grid-template-columns:1fr}}
+  .lg{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--dim)}
+  .sw{width:14px;height:14px;border-radius:4px;flex:none;border:1px solid rgba(31,35,40,.12)}
+  .foot{color:var(--dim);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px;margin-top:8px}
+  @media print{
+    body{background:#fff;padding:0;max-width:none;font-size:12.5px}
+    .sec,.stage,.chip,.meta .m{box-shadow:none}
+    .stage,.lane,table{break-inside:avoid}
+    .sec{border-radius:0;margin-bottom:0;padding:14px 12px}
+  }
+</style>
+</head>
+<body>
+  <h1>ME2 V3 — Complete Pipelines</h1>
+  <div class="meta">
+    <span class="m"><b>AI231 · Mobile Embedded 2</b> — on-device voice-command model</span>
+    <span class="m">Raspberry Pi 4B · ONNX Runtime CPU · &lt; 1 MB</span>
+    <span class="m">Schema ratified <b>2026-10-02</b></span>
+  </div>
+  <p class="sub">Two views of one system: <b>A</b> — the HPC training pipeline
+  (data preparation → feature engineering → training → model selection →
+  validation → export); <b>B</b> — the end-to-end on-device system
+  (microphone → Raspberry Pi → models → decision gates → actuation/UI).</p>
+
+  <div class="chips">
+    <span class="chip">Feature <b>(B, 1, 80, 150)</b> — 3.0 s · 16 kHz · 80-mel log10 · 20 ms hop</span>
+    <span class="chip">Primary <b>bcresnet scale=2</b> · 30,134 params @20c</span>
+    <span class="chip">Command head <b>20</b> · Slot heads <b>6 × 3</b></span>
+    <span class="chip">Loss <b>L = L_cmd + 1.0 · L_slot</b></span>
+    <span class="chip">On-device <b>2 ONNX + numpy mel</b> · RPi 4B · ≤ 100 ms/clip</span>
+  </div>
+
+  <!-- ================= SECTION A : TRAINING (HPC) ================= -->
+  <div class="sec">
+    <h2><span class="shape" style="color:#1a7f37">A</span> Training pipeline
+        <span class="tag">HPC n002 · A100 · screen</span></h2>
+    <p class="sec-sub">Splits: <b>train 10,682</b> · <b>test 4,418</b> (per-epoch, tunable) ·
+    <b>holdout 196</b> (one-shot) · <b>numerals 66,390</b> (report only).
+    Speaker-disjoint, ∅ overlap verified.</p>
+
+    <div class="flow">
+      <!-- S1 -->
+      <div class="stage">
+        <div class="top"><span class="lbl">S1 · Data preparation</span><span class="tag">one-time</span></div>
+        <div class="rows">
+          <div class="r">HF <code>airimonda/ai231-me2-voice-commands</code> (81,686 clips · 3.03 GB) →
+              <code>~/vcm_v3/data/hf_cache/</code>; manifests in <code>data/manifests/</code></div>
+          <div class="r">MUSAN noise bank <b>732 clips @16 kHz</b> (V1 <code>~/vcm/data/noise16k</code>) →
+              augmentation + OOS lane</div>
+          <div class="r">Label normalization: 20 command classes (19 intents + <code>OUT_OF_SCOPE</code>);
+              slots → <b>18-value whitelist</b> (case-insensitive, <code>6:00 AM</code> → <code>6 AM</code>)</div>
+          <div class="r">Supervision: fixed intents &amp; OOS = <b>command-only</b>; slotted intent = + slot
+              loss <b>only if value canonical</b> (158 NaN-slot train clips → command-only)</div>
+          <div class="r">Frozen class weights <code>w = 1/n_c</code>: fixed <b>3.147</b> · slotted
+              <b>1.000–1.049</b> · OOS <b>5.214</b> — computed once, no balanced sampler</div>
+        </div>
+      </div>
+      <div class="arrow">↓</div>
+      <!-- S2 -->
+      <div class="stage s-feat">
+        <div class="top"><span class="lbl">S2 · Feature engineering</span><span class="tag">per sample</span></div>
+        <div class="rows">
+          <div class="r">Waveform <code>16 kHz mono</code> (resample if needed) → <b>3.0 s window, right-aligned to speech end (VAD)</b> —
+              window ends at <code>t1 + 0.5 s</code> (t1 = last voiced frame, frozen audit CSV), front-pad silence
+              <span class="t">(VAD audit: 0.6 / 1.7 / 17.9% of train / test / holdout carry ≥ 3.0 s trailing silence)</span></div>
+          <div class="r"><span class="t">train only:</span> MUSAN mix in <b>waveform domain</b>, SNR 5–25 dB →
+              STFT <code>Hann 1024 (64 ms) · hop 320 (20 ms)</code> → 513 bins → <b>80-mel</b> filterbank
+              (50–8000 Hz) → power → <code>log10</code> (clip 1e-5) → <code>(x+5)/5</code> → [0,1] →
+              <b>151 → 150 frames</b> (drop last, right-aligned)</div>
+          <div class="r"><span class="t">train only, order matters:</span> time-warp 0.95–1.05 (mel, tail preserved)
+              → gain ±10 dB (mel) → <span class="shape">(1, 80, 150)</span> float32</div>
+        </div>
+        <div class="cols2">
+          <div class="lane">
+            <h4>LANE 2a · <b>command clips</b> (10,481 train)</h4>
+            <div class="rows">
+              <div class="r">Full train-only augmentation above</div>
+              <div class="r"><span class="t">eval splits:</span> cached <b>clean base features</b>, no augmentation</div>
+            </div>
+          </div>
+          <div class="lane">
+            <h4>LANE 2b · <b>OUT_OF_SCOPE lane</b> (no time-warp)</h4>
+            <div class="rows">
+              <div class="r">201 OOS clips + 11 empty-transcript noise + <b>generated silence</b> + noise-only (SNR 5–25)</div>
+              <div class="r">same STFT chain → labeled <code>OUT_OF_SCOPE</code> — the anti-silent-fire data half</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow">↓ <span class="alab">tensors (B, 1, 80, 150) + labels</span></div>
+      <!-- S3 -->
+      <div class="stage s-train">
+        <div class="top"><span class="lbl">S3 · Train one epoch</span><span class="tag">per epoch</span></div>
+        <div class="rows">
+          <div class="r">Model: <b>bcresnet scale=2</b> — 30,134 params @20c (fallback v2cnn 98,022, same input) →
+              shared feature tail forks into <b>1 command head Linear(20)</b> + <b>6 slot heads Linear(3)</b>
+              (slot heads read the last ~1.3 s tail — where the slot value is spoken)</div>
+          <div class="r">Loss: <code>L = L_cmd + 1.0 · L_slot</code> —
+              <b>L_cmd</b>: class-weighted CE over <i>all</i> clips (frozen w);
+              <b>L_slot</b>: unweighted CE over <i>valid slotted clips only</i> (batch mean; 0 if none) —
+              NaN-slot clips contribute command-only loss</div>
+          <div class="r">Optimizer: <b>AdamW</b> lr 1e-3 · wd 1e-4 · cosine schedule · batch 32 ·
+              patience-based early stop (V2-validated settings, carried over)</div>
+          <div class="r">Logged per epoch: <code>L_cmd</code>, <code>L_slot</code>, all test metrics (S5)</div>
+        </div>
+      </div>
+      <div class="arrow">↓ <span class="alab">epoch end → evaluate on TEST</span></div>
+      <!-- S4 -->
+      <div class="stage s-sel">
+        <div class="top"><span class="lbl">S4 · Model selection (lexicographic, FROZEN)</span><span class="tag">per epoch · TEST</span></div>
+        <div class="rows">
+          <div class="r"><b>best = max slot accuracy among epochs with command accuracy ≥ 0.990</b></div>
+          <div class="r">no epoch passes the gate → fallback <b>best command accuracy</b> +
+              <span class="warn">GUARD FAILED</span> logged</div>
+          <div class="r">checkpoint saved: <code>best.pt</code> + config + class-weight vector + git commit hash</div>
+          <div class="r">V2 rule: <b>at most ONE targeted retrain</b> — first run-2 knob is <code>λ → 2.0</code>
+              (only if slot gates miss while command gates pass)</div>
+        </div>
+      </div>
+      <div class="arrow">↓ <span class="alab">epochs loop until patience early-stop</span></div>
+      <!-- S5 -->
+      <div class="stage s-eval">
+        <div class="top"><span class="lbl">S5 · Validation &amp; evaluation</span><span class="tag">per epoch + once</span></div>
+        <div class="cols3">
+          <div class="lane">
+            <h4><b>TEST</b> — every epoch (tune freely)</h4>
+            <div class="rows">
+              <div class="r">command acc: overall + per-class (recall)</div>
+              <div class="r">slot acc: per head + overall (slotted clips)</div>
+              <div class="r">OOS false-fire (47 clips → any command)</div>
+              <div class="r">slot confusion matrices (V2 print_slot_matrix pattern)</div>
+            </div>
+          </div>
+          <div class="lane">
+            <h4><b>robustness + numerals</b> — per run</h4>
+            <div class="rows">
+              <div class="r">test command acc at <b>SNR 20 / 10 / 5 dB</b> (seeded waveform MUSAN — group protocol)</div>
+              <div class="r">numerals (66,390) = number-robustness report <b>only</b>, never in the main score</div>
+              <div class="r">OOS softmax curve → <b>pre-register the deployment confidence threshold</b> before run 1</div>
+            </div>
+          </div>
+          <div class="lane">
+            <h4><b>HOLDOUT</b> — exactly ONCE, after selection</h4>
+            <div class="rows">
+              <div class="r">196 clips = 13 fixed × 3 + 6 slotted × 9 + 10 OOS (fixed demo benchmark)</div>
+              <div class="r">gates: command acc <b>≥ 0.950</b> (186 clips) · OOS rejection <b>≥ 8/10</b></div>
+              <div class="r">burns forever — final demo benchmark, never used for tuning</div>
+            </div>
+          </div>
+        </div>
+        <table>
+          <tr><th>Run-1 target (pre-registered)</th><th class="num">TEST</th><th class="num">HOLDOUT</th><th class="num">device</th></tr>
+          <tr><td>command accuracy (overall / macro)</td><td class="num">≥ 0.990 / 0.980</td><td class="num">≥ 0.950</td><td class="num">—</td></tr>
+          <tr><td>slot accuracy (overall / worst head)</td><td class="num">≥ 0.850 / 0.750</td><td class="num">—</td><td class="num">—</td></tr>
+          <tr><td>OOS false-fire / rejection</td><td class="num">≤ 10% (≥ 43/47)</td><td class="num">≥ 8/10</td><td class="num">—</td></tr>
+          <tr><td>RPi 4B ONNX CPU, per 3 s clip</td><td class="num">—</td><td class="num">—</td><td class="num">≤ 100 ms (stretch 50)</td></tr>
+        </table>
+      </div>
+      <div class="arrow">↓ <span class="alab">final checkpoint (best.pt)</span></div>
+      <!-- S6 -->
+      <div class="stage s-exp">
+        <div class="top"><span class="lbl">S6 · Export &amp; package for the Pi</span><span class="tag">once, after holdout</span></div>
+        <div class="rows">
+          <div class="r">ONNX export: input = <b>precomputed mel (1, 80, 150)</b> (mel stays OUTSIDE the graph —
+              no FFT op, conv/pool/linear/BN only) → outputs: <b>cmd logits (20)</b> + 6 × <b>slot logits (3)</b>; opset 17</div>
+          <div class="r">parity check: ONNX vs torch on random + real inputs (V2 gate: worst-diff ≈ 2e-05 scale)</div>
+          <div class="r">Pi package: <code>model.onnx</code> (~120 KB) + <code>wake_model.onnx</code> (V2, reused) +
+              <code>mel.py</code> + <code>mel_window.npy</code> (1024,) + <code>mel_fb.npy</code> (513×80) + meta JSON</div>
+          <div class="r"><b>verify_pi_v3 on the real Pi:</b> numpy-mel vs HPC torch-mel <b>bit-exact</b> — the #1
+              silent on-device accuracy killer (V2 lesson) → then live demo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- ================= SECTION B : END-TO-END SYSTEM (RPi 4B) ================= -->
+  <div class="sec">
+    <h2><span class="shape" style="color:#0969da">B</span> End-to-end system
+        <span class="tag">RPi 4B · ONNX Runtime CPU · no ASR / LLM / cloud</span></h2>
+    <p class="sec-sub">Always-on two-gate design: the <b>wake gate</b> (V2, reused) decides when to listen;
+    the <b>VCM</b> (V3, 20-class + slots) decides what to do. Both consume the <b>same numpy-mel</b>
+    computed once per window. Defense in depth vs V2's silent-fire bug: gate 1 (wake) + gate 2 (OOS class).</p>
+
+    <div class="flow">
+      <!-- B1 -->
+      <div class="stage s-mic">
+        <div class="top"><span class="lbl">B1 · Capture</span><span class="tag">always on</span></div>
+        <div class="rows">
+          <div class="r">mic (USB / 3.5 mm) → ALSA, <code>16 kHz mono int16</code> — <b>assert locked 16 kHz</b>
+              (V2 flag: naive <code>np.interp</code> resample is only safe with a locked rate)</div>
+          <div class="r">→ <b>tmpfs ring buffer</b> (rolling 3.0 s = 48,000 samples) — tmpfs on purpose:
+              SD-card I/O is the bottleneck (V2 lesson)</div>
+        </div>
+      </div>
+      <div class="arrow">↓ <span class="alab">each rolling 3.0 s window</span></div>
+      <!-- B2 -->
+      <div class="stage s-feat">
+        <div class="top"><span class="lbl">B2 · Feature (numpy, on-Pi)</span><span class="tag">per window</span></div>
+        <div class="rows">
+          <div class="r">speech-end anchor (live mic: capture timeout; file replay: VAD t1) / left-pad → STFT (Hann 1024, hop 320) → 80-mel (50–8000) → power →
+              <code>log10</code> → <code>(x+5)/5</code> → <span class="shape">(1, 80, 150)</span> float32</div>
+          <div class="r">window + filterbank loaded from <b>shipped buffers</b>
+              (<code>mel_window.npy</code> 1024, <code>mel_fb.npy</code> 513×80) — <b>bit-exact</b> with HPC
+              training features (verified by <code>verify_pi_v3</code> before demo)</div>
+        </div>
+      </div>
+      <div class="arrow">↓</div>
+      <!-- B3 -->
+      <div class="stage s-onnx">
+        <div class="top"><span class="lbl">B3 · GATE 1 — wake model <span class="t">(V2 bcresnet, reused — no retrain)</span></span>
+            <span class="shape">(1, 80, 150) → (1, 2)</span></div>
+        <div class="rows">
+          <div class="r">2-class "hey boots" — V2 numbers: balanced <b>0.9990</b> · wake recall <b>0.94</b> ·
+              no-wake false-positive <b>0.0000</b>; ONNX parity already verified</div>
+          <div class="r"><span class="bad">no_wake</span> → keep listening (loop below) ·
+              <span class="ok">wake</span> → start command capture</div>
+        </div>
+        <div class="loopnote">↩ <b>no_wake loop:</b> advance window, re-run wake gate — this is the always-on
+        front-end. V3's new command phrases are automatically no_wake; no wake retraining needed.</div>
+      </div>
+      <div class="arrow">↓ <span class="alab">on wake</span></div>
+      <!-- B4 -->
+      <div class="stage s-mic">
+        <div class="top"><span class="lbl">B4 · Command capture window</span><span class="tag">per command</span></div>
+        <div class="rows">
+          <div class="r">record until <b>600 ms RMS silence timeout</b> or 3.0 s cap → right-pad to exactly 3.0 s
+              → same numpy-mel → <span class="shape">(1, 80, 150)</span></div>
+        </div>
+      </div>
+      <div class="arrow">↓</div>
+      <!-- B5 -->
+      <div class="stage s-onnx">
+        <div class="top"><span class="lbl">B5 · GATE 2 — VCM model <span class="t">(V3 bcresnet scale=2 · 30,134 params)</span></span>
+            <span class="shape">(1, 80, 150) → cmd (20) + 6 × slot (3)</span></div>
+        <div class="rows">
+          <div class="r">shared BC-ResNet feature tail → <b>command head</b> (20 classes: 19 intents +
+              <code>OUT_OF_SCOPE</code>, global pool) + <b>6 slot heads</b> (3 whitelisted values each,
+              read the last ~1.3 s tail where the value is spoken)</div>
+          <div class="r">≤ 100 ms per 3 s clip on RPi 4B ONNX CPU (stretch 50 ms) — pre-registered target</div>
+        </div>
+      </div>
+      <div class="arrow">↓ <span class="alab">softmaxes</span></div>
+      <!-- B6 -->
+      <div class="stage s-gate">
+        <div class="top"><span class="lbl">B6 · Decision gates</span><span class="tag">per command</span></div>
+        <div class="cols2">
+          <div class="lane">
+            <h4><b>reject</b> — no action</h4>
+            <div class="rows">
+              <div class="r"><span class="bad">argmax = OUT_OF_SCOPE</span> — wake gate let a non-command
+                  through; the OOS class (weight 5.214) refuses to fire (second rejection layer)</div>
+              <div class="r"><span class="warn">confidence &lt; pre-registered threshold</span> — threshold
+                  frozen from the OOS softmax curve on TEST before run 1 (V2 set it ad hoc — fixed)</div>
+            </div>
+          </div>
+          <div class="lane">
+            <h4><b>accept</b> — dispatch</h4>
+            <div class="rows">
+              <div class="r">command = argmax of 19 intents; slot (slotted intents only) = argmax of that
+                  intent's 3-value head → <b>canonical slot value</b></div>
+              <div class="r">e.g. <i>"set the alarm to 8 AM"</i> → <code>ALARM</code> + <code>8 AM</code>
+                  (locked vocab: 6 AM / 8 AM / 9 PM)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow">↓ <span class="alab">on accept</span></div>
+      <!-- B7 -->
+      <div class="stage s-act">
+        <div class="top"><span class="lbl">B7 · Actuation — intent dispatch</span><span class="tag">19 intents</span></div>
+        <div class="rows">
+          <div class="r"><b>slotted (6):</b> ALARM <code>6 AM · 8 AM · 9 PM</code> → alarm app · TIMER
+              <code>10 seconds · 30 seconds · 1 minute</code> → countdown · TEMPERATURE <code>18 · 22 · 26 degrees</code>
+              → HVAC · BRIGHTNESS <code>20 · 60 · 100 percent</code> → lights · COLOR <code>red · blue · green</code>
+              → lights · CREATE_REMINDER <code>drink water · study · exercise</code> → reminders</div>
+          <div class="r"><b>fixed (13):</b> PLAY_MUSIC / PAUSE / NEXT / STOP → media player ·
+              VOLUME_UP / VOLUME_DOWN → media volume · LIGHT_ON / LIGHT_OFF → lighting ·
+              WEATHER / TIME → info display · CALL / MESSAGE → dialer / messaging app ·
+              LIST_REMINDERS → reminders list UI</div>
+          <div class="r">dispatch = local app/CLI/GPIO calls on the Pi — no cloud round-trip</div>
+        </div>
+      </div>
+      <div class="arrow">↓</div>
+      <!-- B8 -->
+      <div class="stage s-ui">
+        <div class="top"><span class="lbl">B8 · Feedback UI + logging</span><span class="tag">per command</span></div>
+        <div class="rows">
+          <div class="r">ack = <b>beep + LED only — NO spoken confirmation</b> (echo protection: a spoken ack
+              re-triggers the mic, V2 lesson)</div>
+          <div class="r">LED states: <span class="t">off = sleeping · pulse = wake, listening · green = accepted +
+              action · amber = rejected (OOS / low confidence)</span></div>
+          <div class="r">per-trial log line (group benchmark protocol):
+              <code>evaluator_id, trial, command, audio_file, predicted_class, correct, latency_ms</code></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- budget + invariants -->
+    <div class="cols2" style="margin-top:14px">
+      <div class="lane">
+        <h4><b>On-device budget (hard spec)</b></h4>
+        <div class="rows">
+          <div class="r">models: <code>wake_model.onnx</code> + <code>model.onnx</code> ≈ <b>&lt; 1 MB total</b>
+              (VCM ~120 KB)</div>
+          <div class="r">runtime: ONNX Runtime CPU only; mel = numpy (no FFT op in any graph);
+              ~2 GB RAM headroom (waveform cache is HPC-side only)</div>
+          <div class="r">latency: wake gate per rolling window (30K-param model) + VCM per command
+              <b>≤ 100 ms</b> — end-to-end "last word → action" ≈ &lt; 1.5 s (600 ms timeout dominates)</div>
+        </div>
+      </div>
+      <div class="lane">
+        <h4><b>Invariants (why it works)</b></h4>
+        <div class="rows">
+          <div class="r"><b>one feature, two models</b> — the exact same (1,80,150) numpy-mel feeds gate 1 and
+              gate 2; bit-exact parity (S6 / verify_pi_v3) is the deploy gate</div>
+          <div class="r"><b>two independent rejection layers</b> — wake gate (front) + OOS class (back) kill
+              V2's silent-fire bug from both sides</div>
+          <div class="r"><b>slot = last word</b> — right-aligned window guarantees the value sits in the tail
+              the slot heads read</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- legend + foot -->
+  <div class="sec">
+    <h2 style="font-size:16px">Legend</h2>
+    <div class="legend">
+      <div class="lg"><span class="sw" style="background:#656d76"></span> data / capture / UI</div>
+      <div class="lg"><span class="sw" style="background:#0969da"></span> feature / ONNX model</div>
+      <div class="lg"><span class="sw" style="background:#1a7f37"></span> training / actuation</div>
+      <div class="lg"><span class="sw" style="background:#9a6700"></span> selection / decision gates</div>
+      <div class="lg"><span class="sw" style="background:#8250df"></span> validation &amp; evaluation</div>
+      <div class="lg"><span class="sw" style="background:#cf222e"></span> export &amp; deploy</div>
+    </div>
+    <div class="foot">
+      Sources: <span class="k">BENCHMARK.md</span> (pre-registered targets/protocol) ·
+      <span class="k">DECISIONS.md</span> (clean-slate review + ratified deltas) ·
+      <span class="k">src/models.py</span> <span class="k">src/commands.py</span> <span class="k">src/slots.py</span>
+      (20 classes / 6 heads / 18 values, @20c params verified) ·
+      <span class="k">tools/duration_check.py</span> (3.0 s audit) ·
+      next: <span class="k">src/features.py</span> <span class="k">tools/train.py</span> (to implement to this
+      exact spec). Wake ckpt: <span class="k">~/ai231_me2_v2/runs/v2w/bcresnet/…best.pt</span>.
+      Updated 2026-10-02 — companion to <span class="k">docs/architecture.html</span> (layer-by-layer arch detail).
+    </div>
+  </div>
+</body>
+</html>

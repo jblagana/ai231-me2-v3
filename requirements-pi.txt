@@ -1,0 +1,5 @@
+# Raspberry Pi 4B inference (ONNX Runtime, CPU). Keep this lean.
+onnxruntime>=1.17
+numpy
+soundfile
+sounddevice

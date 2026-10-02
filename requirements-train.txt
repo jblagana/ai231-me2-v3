@@ -1,0 +1,7 @@
+# Training (A100). On the class HPC use the conda `vcm` env instead:
+#   ~/.conda/envs/vcm/bin/python tools/train.py ...   (torch 2.14 + cu130)
+# On any other GPU box:
+#   pip install -r requirements-train.txt
+-r requirements.txt
+torch>=2.1
+# CUDA build is expected for the A100 run (CPU training is far too slow).
