@@ -343,7 +343,8 @@ def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--arch", choices=["bcresnet", "v2cnn"], default="bcresnet")
     ap.add_argument("--run", default=None, help="run name (runs/<name>/)")
-    ap.add_argument("--epochs", type=int, default=30)
+    ap.add_argument("--epochs", type=int, default=100,
+                    help="frozen protocol: 100 (see BENCHMARK.md)")
     ap.add_argument("--batch", type=int, default=32)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--wd", type=float, default=1e-4)
