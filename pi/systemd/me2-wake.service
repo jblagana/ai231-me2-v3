@@ -1,0 +1,16 @@
+[Unit]
+Description=ME2 wake loop (hey boots + VCM, posts to UI)
+After=network-online.target sound.target me2-ui.service
+Wants=network-online.target me2-ui.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/jan/me2
+ExecStart=/home/jan/me2/.venv/bin/python /home/jan/me2/pi_demo.py --dir /home/jan/me2 --loop --device 1 --post http://127.0.0.1:8330/fire --record /home/jan/me2/rec
+Restart=always
+RestartSec=3
+StandardOutput=append:/home/jan/me2/demo.log
+StandardError=append:/home/jan/me2/demo.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=ME2 watchdog (restarts wedged wake loop on log silence)
+After=me2-wake.service
+Wants=me2-wake.service
+
+[Service]
+Type=simple
+ExecStart=/home/jan/me2/me2_watchdog.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

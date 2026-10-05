@@ -1,0 +1,16 @@
+[Unit]
+Description=ME2 UI server (port 8330)
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/jan/me2
+ExecStart=/home/jan/me2/.venv/bin/python /home/jan/me2/me2_ui.py --dir /home/jan/me2 --port 8330
+Restart=always
+RestartSec=3
+StandardOutput=append:/home/jan/me2/ui.log
+StandardError=append:/home/jan/me2/ui.log
+
+[Install]
+WantedBy=multi-user.target

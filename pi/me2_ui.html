@@ -188,12 +188,24 @@ h2{font-size:12px;letter-spacing:.16em;color:var(--dim);margin:0 0 10px 2px}
   transition:width .5s linear}
 .mtime{font-size:11px;color:var(--dim);text-align:center;margin-top:5px;
   font-variant-numeric:tabular-nums;min-height:14px}
-/* V3 volume bar (VOLUME_UP / VOLUME_DOWN) */
-.volrow{display:flex;align-items:center;gap:8px;margin-top:10px}
-.vollbl{font-size:10px;letter-spacing:.12em;color:var(--dim)}
-.volbar{flex:1;height:6px;background:var(--track);border-radius:3px;overflow:hidden}
-.volbar i{display:block;height:100%;background:var(--blue);border-radius:3px;transition:width .3s}
-.volval{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;min-width:20px;text-align:right}
+/* V4 volume — HEADER fader (design D, 2026-10-03): compact level fader in the
+   tile header, body stays clean. Draggable, fires VOLUME_UP/DOWN (±20). The
+   track fill is a gradient driven by --fill (set from JS = volume %). */
+.mhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.mhead .tk{margin-bottom:0}
+.volhead{display:flex;align-items:center;gap:7px}
+.volhead .spk{font-size:14px;line-height:1;opacity:.9}
+.volhead input[type=range]{
+  -webkit-appearance:none;appearance:none;width:64px;height:6px;border-radius:3px;
+  background:linear-gradient(to right,var(--blue) 0%,var(--blue) var(--fill,60%),
+    var(--track) var(--fill,60%),var(--track) 100%);
+  outline:none;cursor:pointer;margin:0}
+.volhead input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:13px;height:13px;border-radius:50%;
+  background:var(--blue);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.5);cursor:pointer}
+.volhead input[type=range]::-moz-range-thumb{
+  width:13px;height:13px;border-radius:50%;background:var(--blue);border:2px solid #fff;cursor:pointer}
+.volhead .vval{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;min-width:18px;text-align:right}
 .meq{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:18px;margin-top:10px}
 .meq i{width:3px;height:100%;background:var(--blue);border-radius:2px;
   transform-origin:bottom;transform:scaleY(.22);opacity:.45;
@@ -210,6 +222,29 @@ h2{font-size:12px;letter-spacing:.16em;color:var(--dim);margin:0 0 10px 2px}
 .chip{font-size:12px;padding:4px 10px;border-radius:8px;background:var(--card2);
   border:1px solid var(--line);font-weight:600}
 .chip.faded{color:var(--dim);opacity:.5}
+/* reminders — checklist (design C, 2026-10-03): tappable rows + open-count
+   badge. Open rows first, done rows struck-through + muted below. */
+.remhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.remhead .tk{margin-bottom:0}
+.remcount{font-size:10.5px;font-weight:650;color:var(--blue);background:var(--glow-blue);
+  border:1px solid var(--line);padding:2px 8px;border-radius:20px;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.remcount.zero{color:var(--dim);background:var(--card2)}
+.rem{display:flex;flex-direction:column;gap:6px}
+.remrow{display:flex;align-items:flex-start;gap:9px;padding:7px 9px;border-radius:9px;
+  background:var(--card2);border:1px solid var(--line);cursor:pointer;
+  transition:border-color .2s,background .2s,opacity .2s}
+.remrow:hover{border-color:var(--blue)}
+.rembox{width:17px;height:17px;border-radius:5px;flex-shrink:0;margin-top:1px;
+  border:1.5px solid var(--dim);background:var(--card);position:relative;
+  transition:background .2s,border-color .2s}
+.remrow.done .rembox{background:var(--green);border-color:var(--green)}
+.remrow.done .rembox::after{content:"";position:absolute;left:5px;top:2px;width:4px;height:8px;
+  border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.remtxt{font-size:13px;font-weight:600;line-height:1.35;word-break:break-word}
+.remrow.done .remtxt{color:var(--dim);text-decoration:line-through;text-decoration-color:var(--dim)}
+.remrow.done{opacity:.6}
+.remempty{font-size:12.5px;color:var(--dim);opacity:.6;padding:4px 2px}
 
 /* ============ MOCK CONTROL STRIP ============ */
 .mockbar{margin-top:20px;padding:14px 16px;background:var(--card);
@@ -244,7 +279,7 @@ h2{font-size:12px;letter-spacing:.16em;color:var(--dim);margin:0 0 10px 2px}
   <div class="inner">
     <div class="k">LAST COMMAND</div>
     <div id="last"><div class="empty">waiting — say "Hey boots", then speak
-      your command<span class="hint">the big card glows around its edges while Boots is listening</span></div></div>
+      your command</div></div>
   </div>
 </div>
 
@@ -268,23 +303,27 @@ h2{font-size:12px;letter-spacing:.16em;color:var(--dim);margin:0 0 10px 2px}
     </div></div>
   <div class="tile" id="t-alarm"><div class="tk">ALARMS</div>
     <div class="chiprow" id="alarms"><span class="chip faded">none</span></div></div>
-  <div class="tile" id="t-music"><div class="tk">MUSIC</div>
+  <div class="tile" id="t-music">
+    <div class="mhead"><div class="tk">MUSIC</div>
+      <div class="volhead">
+        <span class="spk">🔊</span>
+        <input type="range" id="volrng" min="0" max="100" step="1" value="60" aria-label="volume">
+        <span class="vval" id="volval">60</span>
+      </div>
+    </div>
     <div class="big mid dim" id="mtrack">nothing playing</div>
     <div class="meq"><i></i><i></i><i></i><i></i><i></i></div>
     <div class="mprog"><i id="mprog-fill"></i></div>
     <div class="mtime" id="mtime"></div>
-    <div class="volrow">
-      <span class="vollbl">VOL</span>
-      <div class="volbar"><i id="volbar" style="width:60%"></i></div>
-      <span class="volval" id="volval">60</span>
-    </div>
     <div class="mbtns">
       <button class="mbtn" id="mprev" title="previous">⏮</button>
       <button class="mbtn" id="mpb" title="play/pause">▶</button>
       <button class="mbtn" id="mnext" title="next">⏭</button>
     </div></div>
-  <div class="tile" id="t-notes"><div class="tk">NOTES</div>
-    <div class="chiprow" id="notes"><span class="chip faded">—</span></div></div>
+  <div class="tile" id="t-notes">
+    <div class="remhead"><div class="tk">REMINDERS</div>
+      <span class="remcount" id="remcount">0 open</span></div>
+    <div class="rem" id="rem"><span class="remempty">no reminders — say "remind me to …"</span></div></div>
 </div>
 
 </main>
@@ -342,8 +381,35 @@ $('theme').onclick=()=>{
   localStorage.setItem('me2-theme',t);
 };
 
-// music transport buttons are inert in prod — voice drives the deck
-// (PLAY_MUSIC / VOLUME_UP-DOWN / NEXT / PAUSE / STOP update s.music from the server)
+// ---- live fire: POST a command to the Pi (voice is primary; the UI is a
+//     secondary control surface — the slider + transport buttons drive the
+//     same /fire dispatch as a spoken command). ----
+let LIVE=false;
+async function fire(cmd,slot){
+  if(!LIVE) return;
+  try{
+    await fetch('/fire',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({cmd,slot:slot!=null?slot:null,conf:1.0})});
+  }catch(e){}
+}
+// header volume fader -> SET_VOLUME (exact value; the 1 Hz sync loop
+// keeps the tile + slider in lockstep with the M1A HW knob). step=1 so
+// the thumb can land on any HW value, not just multiples of 20.
+(function(){
+  const rng=$('volrng'); if(!rng) return;
+  rng.addEventListener('change',()=>fire('SET_VOLUME', rng.value));
+})();
+// transport buttons -> the same /fire the voice uses
+(function(){
+  const pb=$('mpb'), pv=$('mprev'), nx=$('mnext');
+  if(pb) pb.onclick=()=>{
+    // resume the paused track if one is loaded, else start a fresh one
+    fire(pb.textContent==='⏸' ? 'PAUSE' : (pb.dataset.trk ? 'RESUME' : 'PLAY_MUSIC'));
+  };
+  if(pv) pv.onclick=()=>fire('STOP');
+  if(nx) nx.onclick=()=>fire('NEXT');
+})();
 
 // ---- DEMO STATES (including clarify / reject / slot-fill) ----
 const L0={on:false,level:0,color:'white'};
@@ -399,6 +465,43 @@ const DEMO=[
     lamp:{...L0},thermo:21.5,music:{...M0}}},
 ];
 
+// ---- reminders: render the checklist + wire checkbox toggles ----
+function renderReminders(list){
+  const box=$('rem'); if(!box) return;
+  const open=list.filter(r=>!r.done);
+  const done=list.filter(r=>r.done);
+  const cnt=$('remcount');
+  if(cnt){
+    cnt.textContent=open.length+' open'+(done.length?' · '+done.length+' done':'');
+    cnt.classList.toggle('zero',open.length===0);
+  }
+  if(!list.length){
+    box.innerHTML='<span class="remempty">no reminders — say "remind me to …"</span>';
+    return;
+  }
+  const row=(r,i)=>
+    `<div class="remrow${r.done?' done':''}" data-i="${i}">
+       <span class="rembox"></span>
+       <span class="remtxt">${esc(r.text)}</span>
+     </div>`;
+  box.innerHTML=open.map(row).join('')+done.map(row).join('');
+  box.querySelectorAll('.remrow').forEach(el=>{
+    el.onclick=async()=>{
+      const i=+el.dataset.i;
+      const r=list[i]; if(!r) return;
+      r.done=!r.done;
+      renderReminders(list);
+      if(LIVE){
+        try{
+          await fetch('/reminders',{method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({index:i,done:r.done})});
+        }catch(e){}
+      }
+    };
+  });
+}
+
 // ---- render ----
 function render(s){
   const bc=$('bigcard');
@@ -426,7 +529,7 @@ function render(s){
   // big card content
   const lastEl=$('last');
   if(mode==='idle'){
-    lastEl.innerHTML='<div class="empty">waiting — say "Hey boots", then speak\n      your command<span class="hint">the big card glows around its edges while Boots is listening</span></div>';
+    lastEl.innerHTML='<div class="empty">waiting — say "Hey boots", then speak\n      your command</div>';
   }else if(mode==='awake'){
     lastEl.innerHTML='<div class="cmd" style="color:var(--green)">Listening…</div><div class="slot none">speak now</div>';
   }else if(mode==='clarify'){
@@ -512,15 +615,20 @@ function render(s){
   const ld=$('lampdot');
   ld.classList.toggle('on',lamp2.on);
   ld.style.setProperty('--glow',lamp2.on?Math.round(8+lamp2.level*0.32)+'px':'0px');
+  // lamp color -> shared hex (dot + brightness slider both follow the lamp)
+  const CHX={white:'#ffd54f',red:'#ff6b6b',blue:'#4dabf7',green:'#51cf66'};
+  const chx=CHX[lamp2.color]||CHX.white;
   if(lamp2.on){
-    const chx={white:'#ffd54f',red:'#ff6b6b',blue:'#4dabf7',green:'#51cf66'}[lamp2.color]||'#ffd54f';
     ld.style.background='radial-gradient(circle,#fff8e1 30%,'+chx+' 70%,'+chx+')';
   }else{ld.style.background='';}
-  $('lvlbar').style.width=lamp2.on?lamp2.level+'%':'0%';
+  const lbar=$('lvlbar');
+  lbar.style.width=lamp2.on?lamp2.level+'%':'0%';
+  lbar.style.background=lamp2.on?chx:'';  // slider fill follows the lamp color
   const lt=$('lvltext');
   lt.textContent=lamp2.on?('ON · '+lamp2.level+'%'
     +((lamp2.color&&lamp2.color!=='white')?' · '+lamp2.color:'')):'OFF';
   lt.classList.toggle('on',lamp2.on);
+  lt.style.color=lamp2.on?chx:'';  // label tinted to the lamp color too
 
   // thermostat
   $('tcur').textContent=(s.thermo??21.5)+'°';
@@ -568,28 +676,37 @@ function render(s){
   const mt=$('mtrack');
   mt.textContent=music.track;
   mt.classList.toggle('dim',!music.playing);
-  $('mpb').textContent=music.playing?'⏸':'▶';
-  $('mpb').classList.toggle('play',music.playing);
+  const pb=$('mpb');
+  pb.textContent=music.playing?'⏸':'▶';
+  pb.classList.toggle('play',music.playing);
+  // paused track loaded -> the ▶ resumes THIS track (RESUME); else fresh
+  pb.dataset.trk=(music.paused&&music.track&&music.track!=='nothing playing')?'1':'';
   $('t-music').classList.toggle('playing',!!music.playing);
   const frac=Math.max(0,Math.min(1,(music.fraction!=null?music.fraction:0)));
   $('mprog-fill').style.width=(frac*100).toFixed(1)+'%';
   $('mtime').textContent=(music.duration!=null)
     ?fmtT(music.elapsed||0)+' / '+fmtT(music.duration)
     :'';
-  if($('volbar')){
-    $('volbar').style.width=(music.vol!=null?music.vol:0)+'%';
-    $('volval').textContent=(music.vol!=null?music.vol:0);
+  if($('volval')){
+    const v=music.vol!=null?music.vol:0;
+    $('volval').textContent=v;
+    const rng=$('volrng');
+    if(rng){
+      if(rng.value!=String(v)) rng.value=v;
+      rng.style.setProperty('--fill',v+'%');
+    }
   }
 
-  // notes — real reminders + recent event chips in live mode
-  if('notes' in s){
-    const N=s.notes||[];
-    $('notes').innerHTML=N.length
-      ?N.map(n=>'<span class="chip">'+esc(n)+'</span>').join('')
-      :'<span class="chip faded">—'+'</span>';
+  // reminders — structured checklist (live: real list; demo: synthesized)
+  if('reminders' in s){
+    renderReminders(s.reminders||[]);
   }else{
     const notesActive=s.last&&(s.last.cmd==='CREATE_REMINDER'||s.last.cmd==='CALL'||s.last.cmd==='LIST_REMINDERS')&&s.mode==='done';
-    $('notes').innerHTML=`<span class="chip${notesActive?'':' faded'}">${notesActive?esc(s.last.slot):'—'}</span>`;
+    if(notesActive&&s.last.slot){
+      renderReminders([{text:s.last.slot,done:false,ts:0}]);
+    }else{
+      renderReminders([]);
+    }
   }
 
   // thermostat sub + weather — live mode (server fetch, fail-soft)
@@ -620,7 +737,9 @@ if(params.get('theme')){
 const di=parseInt(params.get('d'));
 if(!isNaN(di)&&DEMO[di])showState(DEMO[di],di);
 else if(location.protocol!=='file:'){
-  // LIVE mode — poll the Pi UI server (handover §7 data model, 1 Hz)
+  // LIVE mode — poll the Pi UI server (handover §7 data model, 1 Hz); the
+  // slider + transport buttons POST /fire (LIVE=true enables them).
+  LIVE=true;
   async function live(){
     try{render(await (await fetch('/ui_state')).json());}catch(e){}
   }

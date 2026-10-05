@@ -16,6 +16,7 @@ Usage (on the Pi, from the package dir):
 import argparse
 import json
 import random
+import re
 import sys
 import tempfile
 import threading
@@ -23,6 +24,7 @@ import time
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import subprocess
 
 LABELS = {
     # V3 phrasebook (20 classes, src/commands.py) — single source of truth
@@ -52,6 +54,7 @@ STATE = {
     "last_good": None,  # most recent non-gated fire (drives the done card)
     "last_dim": None,   # {"old","new"} light level of the last dim_lights
     "weather": None,    # {"icon","temp","condition","ts"} open-meteo cache
+    "weather_online": False,
 }
 
 _PAGE_HTML = None  # me2_ui.html bytes (the handover UI) or None
@@ -129,7 +132,8 @@ DEV = {
     "timer": None,            # {"until": ts, "secs": n, "mins": n/60, "done": bool}
     "alarms": [],
     "temp": {"target": None, "current": 21.5},
-    "music": {"playing": False, "paused": False, "track": None, "vol": 60},
+    "music": {"playing": False, "paused": False, "track": None, "vol": 60,
+              "user_paused": False},
     "reminders": [],
     "chips": deque(maxlen=6),  # (text, ts)
     "speaking_until": 0.0,     # TTS self-trigger window (pi_demo guard)
@@ -181,6 +185,28 @@ def _music_init():
           + ("ready" if shutil.which(espeak)
              else "MISSING — apt install espeak-ng (chip-only answers)"),
           flush=True)
+    _music_sync_vol_from_hw()
+    # Live sync: the M1A speaker has a physical volume knob — turning it
+    # moves the HW PCM level without touching the tile. A 1 Hz daemon
+    # resyncs the tile when the HW and tile disagree (covers both a
+    # manual knob turn AND a VOLUME fire that pushed the HW). The
+    # render loop writes rng.value from the tile every poll, so the
+    # slider follows automatically.
+    threading.Thread(target=_music_vol_sync_loop, daemon=True).start()
+
+
+def _music_vol_sync_loop() -> None:
+    """1 Hz daemon: resync the tile volume from the M1A HW when they
+    disagree. Fail-soft: on read error the tile keeps its value."""
+    while True:
+        time.sleep(1.0)
+        try:
+            if _music_vol_changed():
+                hw = _music_read_hw_vol()
+                if hw is not None:
+                    DEV["music"]["vol"] = hw
+        except Exception:
+            pass
 
 
 def _music_worker():
@@ -306,6 +332,63 @@ def _music_resume() -> bool:
     return True
 
 
+
+def _music_sync_vol_from_hw() -> None:
+    """Read the M1A PCM hardware volume and set the tile to match.
+    Called at boot so the first play comes out at the speaker's actual
+    level, not a stale default. Fail-soft: on any error the tile keeps
+    its default (60)."""
+    try:
+        import re as _re
+        r = subprocess.run(
+            ["amixer", "-c", "M1A", "sget", "PCM"],
+            capture_output=True, text=True, timeout=3,
+        )
+        m = _re.search(r"Playback\s+(\d+)\s+\[(\d+)%\]", r.stdout)
+        if m:
+            hw_vol = int(m.group(2))
+            DEV["music"]["vol"] = hw_vol
+            print(f"music: tile vol synced to hw ({hw_vol}%)", flush=True)
+    except Exception:
+        pass  # amixer missing / M1A gone — keep default
+
+
+def _apply_alsa_volume(vol: int) -> None:
+    """Push the music volume to the M1A ALSA PCM control (0-100 %).
+    Called on every VOLUME_UP / VOLUME_DOWN / SET_VOLUME so the speaker
+    actually changes level, not just the tile readout. Fail-soft: if
+    amixer is missing or the M1A is wedged, the tile state still
+    updates."""
+    try:
+        subprocess.run(
+            ["amixer", "-c", "M1A", "set", "PCM", f"{vol}%"],
+            capture_output=True, timeout=3,
+        )
+    except Exception:
+        pass  # amixer missing / M1A gone — tile still reflects the value
+
+
+def _music_read_hw_vol() -> int | None:
+    """Read the M1A PCM hardware volume (0-100). None on any error
+    (amixer missing / M1A wedged)."""
+    try:
+        r = subprocess.run(
+            ["amixer", "-c", "M1A", "sget", "PCM"],
+            capture_output=True, text=True, timeout=3,
+        )
+        m = re.search(r"Playback\s+(\d+)\s+\[(\d+)%\]", r.stdout)
+        return int(m.group(2)) if m else None
+    except Exception:
+        return None
+
+
+def _music_vol_changed() -> bool:
+    """True if the tile volume and the M1A hardware volume disagree.
+    A manual speaker-knob turn (or a VOLUME fire) moves the HW; the tile
+    only follows if we resync. Fail-soft: on read error, no change."""
+    hw = _music_read_hw_vol()
+    return hw is not None and hw != DEV["music"]["vol"]
+
 # ---------------------------------------------------------------- speak
 # Spoken replies (instruction 16, 2026-10-02): the live v2e model merged
 # ask_time + ask_weather into ONE slot-less `ask_question` class, so
@@ -333,16 +416,23 @@ _TTS = {"lock": threading.Lock(), "proc": None}
 def _time_words(t) -> str:
     """localtime -> 'seven forty two p m' (espeak text; no digits)."""
     h = t.tm_hour % 12 or 12
-    hw = ["twelve", "one", "two", "three", "four", "five", "six",
-          "seven", "eight", "nine", "ten", "eleven"][h - 1]
+    hw = ["one", "two", "three", "four", "five", "six", "seven",
+          "eight", "nine", "ten", "eleven", "twelve"][h - 1]
     ap = "a m" if t.tm_hour < 12 else "p m"
     m = t.tm_min
     if m == 0:
         return f"{hw} o'clock {ap}"
-    tens = ["", "ten", "twenty", "thirty", "forty", "fifty"]
-    ones = ["", "one", "two", "three", "four", "five", "six",
-            "seven", "eight", "nine"]
-    mw = (tens[m // 10] + (" " + ones[m % 10] if m % 10 else "")).strip()
+    _ones = ["", "one", "two", "three", "four", "five", "six",
+             "seven", "eight", "nine"]
+    _teens = ["ten", "eleven", "twelve", "thirteen", "fourteen",
+              "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
+    _tens = ["", "", "twenty", "thirty", "forty", "fifty"]
+    if m < 10:
+        mw = _ones[m]
+    elif m < 20:
+        mw = _teens[m - 10]
+    else:
+        mw = _tens[m // 10] + (" " + _ones[m % 10] if m % 10 else "")
     return f"{hw} {mw} {ap}"
 
 
@@ -373,12 +463,12 @@ def _weather_reply():
     """(chip text, speak text) for ask_weather — weather only, live
     open-meteo (UP Diliman)."""
     w = STATE.get("weather")
-    if w and w.get("temp") is not None:
+    if w and w.get("temp") is not None and STATE.get("weather_online"):
         cond = str(w.get("condition") or "all good").strip().capitalize()
         return (f"{cond}, {w['temp']:.0f}°",
                 f"{cond}, {_int_words(w['temp'])} degrees")
-    return ("I can't reach the weather feed right now.",
-            "I can't reach the weather feed right now.")
+    return ("Sorry, no internet connection.",
+            "Sorry, no internet connection.")
 
 
 def _ask_reply():
@@ -540,7 +630,8 @@ def _speak_monitor(ducked: bool):
         if _TTS["proc"] is p:
             _TTS["proc"] = None
     should_resume = ducked or _DUCK.get("defer")
-    if should_resume and DEV["music"].get("paused") and _M["proc"] is None:
+    if (should_resume and DEV["music"].get("paused")
+            and not DEV["music"].get("user_paused") and _M["proc"] is None):
         if not _music_resume():
             DEV["music"]["paused"] = False
         else:
@@ -571,7 +662,7 @@ def apply_fire(f: dict) -> str:
     if conf < 0.50:  # confidence gate (ACTUATION)
         add_chip(f"heard something ({conf:.2f}) — below gate")
         return "gated"
-    if now - _LAST_FIRE.get((cmd, slot), 0.0) < 2.0:
+    if cmd != "SET_VOLUME" and now - _LAST_FIRE.get((cmd, slot), 0.0) < 2.0:
         return "debounced"
     _LAST_FIRE[(cmd, slot)] = now
 
@@ -581,17 +672,30 @@ def apply_fire(f: dict) -> str:
         track = random.choice(SONGS)
         if m["playing"] and not m["paused"] and track == m["track"]:
             return "noop"  # same-song repeat (ACTUATION)
-        m.update(playing=True, paused=False, track=track)
+        m.update(playing=True, paused=False, track=track, user_paused=False)
         _DUCK.update(awake=False, defer=False)  # new track, fresh state
         if not _music_play(track):  # real audio (instruction 15)
             m["playing"] = False  # fail-soft: don't claim it's playing
             add_chip(f"music: no audio for “{track}”")
     elif cmd == "VOLUME_UP":
-        DEV["music"]["vol"] = min(100, DEV["music"]["vol"] + 10)
+        DEV["music"]["vol"] = min(100, DEV["music"]["vol"] + 20)
+        _apply_alsa_volume(DEV["music"]["vol"])
         add_chip(f"volume {DEV['music']['vol']}")
     elif cmd == "VOLUME_DOWN":
-        DEV["music"]["vol"] = max(0, DEV["music"]["vol"] - 10)
+        DEV["music"]["vol"] = max(0, DEV["music"]["vol"] - 20)
+        _apply_alsa_volume(DEV["music"]["vol"])
         add_chip(f"volume {DEV['music']['vol']}")
+    elif cmd == "SET_VOLUME":
+        # UI slider: set the M1A HW volume to the exact value. The
+        # 1 Hz sync loop keeps the tile in lockstep with the HW.
+        try:
+            v = int(slot)
+        except (TypeError, ValueError):
+            v = DEV["music"]["vol"]
+        v = max(0, min(100, v))
+        DEV["music"]["vol"] = v
+        _apply_alsa_volume(v)
+        add_chip(f"volume {v}")
     elif cmd == "NEXT":
         m = DEV["music"]
         if not m["track"]:
@@ -602,15 +706,33 @@ def apply_fire(f: dict) -> str:
             m.update(playing=True, paused=False, track=nxt)
             _music_play(nxt)
     elif cmd == "PAUSE":
+        # ONE-WAY (2026-10-03): "pause music" always stops, never resumes.
+        # It was a toggle before — the wake-duck pauses the music on "hey
+        # boots", so a spoken "pause" then hit the resume branch and PLAYED
+        # the music (reproduced live: play -> awake/duck -> pause => playing).
+        # To bring it back, say "resume music" (RESUME below).
+        # user_paused stops the idle-handler's auto-resume (which is meant
+        # only for the wake-duck, not a deliberate user pause).
         m = DEV["music"]
         if m["playing"] and not m["paused"]:
             _music_pause()
-            m["paused"] = True
+            m.update(playing=False, paused=True, user_paused=True)
         elif m["paused"]:
-            if not _music_resume():
-                m["paused"] = False
+            m.update(playing=False, user_paused=True)
         else:
             add_chip("nothing to pause")
+    elif cmd == "RESUME":
+        # "resume music" — relaunch from the paused sample offset.
+        m = DEV["music"]
+        if m["track"] and not (m["playing"] and not m["paused"]):
+            if _music_resume():
+                m.update(playing=True, paused=False, user_paused=False)
+                _DUCK.update(awake=False, defer=False)
+            else:
+                m.update(paused=False, user_paused=False)
+                add_chip("nothing to resume")
+        else:
+            add_chip("nothing to resume")
     elif cmd == "STOP":
         m = DEV["music"]
         if m["track"]:
@@ -618,7 +740,7 @@ def apply_fire(f: dict) -> str:
                 _music_kill()
                 _M["track"] = None
                 _M["pos"] = 0
-            m.update(playing=False, paused=False, track=None)
+            m.update(playing=False, paused=False, track=None, user_paused=False)
         else:
             add_chip("nothing playing")
     # --- lighting ---
@@ -663,14 +785,16 @@ def apply_fire(f: dict) -> str:
         add_chip("dialing…")
     elif cmd == "MESSAGE":
         add_chip("opening messages…")
-    # --- reminders ---
+    # --- reminders (structured: {text, done, ts}) ---
     elif cmd == "CREATE_REMINDER":
-        if slot and slot not in DEV["reminders"]:
-            DEV["reminders"].append(slot)
-            DEV["reminders"] = DEV["reminders"][:20]
+        if slot:
+            if not any(r["text"] == slot for r in DEV["reminders"]):
+                DEV["reminders"].insert(0,
+                    {"text": slot, "done": False, "ts": time.time()})
+                DEV["reminders"] = DEV["reminders"][:20]
     elif cmd == "LIST_REMINDERS":
-        r = DEV["reminders"]
-        add_chip("reminders: " + (", ".join(r) if r else "none") + "…")
+        open_r = [r["text"] for r in DEV["reminders"] if not r["done"]]
+        add_chip("reminders: " + (", ".join(open_r) if open_r else "none") + "…")
     else:
         add_chip(f"unhandled command: {cmd}")
     return "fired"
@@ -704,7 +828,7 @@ def dev_view(now: float) -> dict:
         "alarms": list(DEV["alarms"]),
         "temp": {"current": round(cur, 1), "target": tgt, "mode": mode},
         "music": {**m, "eq": m["playing"] and not m["paused"]},
-        "reminders": list(DEV["reminders"]),
+        "reminders": [dict(r) for r in DEV["reminders"]],
         "chips": [(c, ts) for c, ts in DEV["chips"] if now - ts < 60],
     }
 
@@ -774,6 +898,7 @@ def _weather_fetch():
     STATE["weather"] = {"icon": icon,
                         "temp": round(float(cur["temperature_2m"])),
                         "condition": cond, "ts": time.time()}
+    STATE["weather_online"] = True
 
 
 def _weather_loop():
@@ -781,7 +906,7 @@ def _weather_loop():
         try:
             _weather_fetch()
         except Exception:
-            pass  # no internet / rate limit -> keep last good value
+            STATE["weather_online"] = False  # no internet / rate limit
         time.sleep(900)
 
 
@@ -812,6 +937,7 @@ def _ui_music(dev: dict) -> dict:
             elapsed = min(elapsed, dur)
     return {"track": m["track"] or "nothing playing",
             "playing": playing,
+            "paused": bool(m.get("paused")) and not playing,
             "elapsed": round(elapsed, 1),
             "duration": round(dur, 1),
             "fraction": round(frac, 4),
@@ -875,7 +1001,8 @@ def ui_state_json() -> dict:
         "timer": timer,
         "alarms": dev["alarms"],
         "music": _ui_music(dev),
-        "notes": list(dev["reminders"]) + [c for c, _ts in dev["chips"]],
+        "notes": [c for c, _ts in dev["chips"]],
+        "reminders": dev["reminders"],
         "weather": weather,
         "speaking": time.time() < STATE.get("speaking_until", 0.0),
         "slotPrompt": None, "candidates": None, "retries": None,
@@ -944,10 +1071,14 @@ class Handler(BaseHTTPRequestHandler):
                             if _music_pause():
                                 _DUCK["awake"] = True
                     elif _DUCK["awake"]:
-                        # Idle after a wake: resume the ducked music. If a
-                        # TTS reply is still playing, defer to its monitor
-                        # (it resumes when the reply ends).
-                        if _TTS["proc"] is not None and _TTS["proc"].poll() is None:
+                        # Idle after a wake: resume the ducked music — but only
+                        # if the pause was the WAKE-DUCK, not a deliberate user
+                        # "pause" (user_paused). A user pause must STAY paused
+                        # until "resume music". If a TTS reply is still playing,
+                        # defer to its monitor (it resumes when the reply ends).
+                        if m.get("user_paused"):
+                            _DUCK["awake"] = False  # user owns the pause now
+                        elif _TTS["proc"] is not None and _TTS["proc"].poll() is None:
                             _DUCK["defer"] = True
                         elif m["paused"] and _M["proc"] is None:
                             if _music_resume():
@@ -956,6 +1087,21 @@ class Handler(BaseHTTPRequestHandler):
                                 m["paused"] = False
                                 _DUCK["awake"] = False
             self._send(200, b"ok", "text/plain")
+        elif self.path == "/reminders":
+            # Toggle a reminder's done state by index (UI checkbox).
+            # Body: {"index": <int>, "done": <bool>}
+            idx = obj.get("index")
+            try:
+                idx = int(idx)
+            except (TypeError, ValueError):
+                self._send(400, b"bad index", "text/plain")
+                return
+            with STATE["lock"]:
+                if 0 <= idx < len(DEV["reminders"]):
+                    DEV["reminders"][idx]["done"] = bool(obj.get("done", True))
+                    self._send(200, b"ok", "text/plain")
+                else:
+                    self._send(404, b"no such reminder", "text/plain")
         else:
             self._send(404, b"not found", "text/plain")
 
@@ -1145,7 +1291,7 @@ function renderDev(d){
  flash('t-music',chg('music'));
  const nt=document.getElementById('notes');
  let h=(d.chips||[]).map(x=>'<span class="chip">'+esc(x[0])+'</span>').join('');
- h+=(d.reminders||[]).map(r=>'<span class="chip">'+esc(r)+'</span>').join('');
+ h+=(d.reminders||[]).map(r=>'<span class="chip'+(r.done?' faded':'')+'">'+esc(r.text)+'</span>').join('');
  nt.innerHTML=h||'<span class="chip faded">—</span>';
  flash('t-notes',chg('notes'));
  prevSig=sig;

@@ -7,7 +7,7 @@ dir is the export_v2.py payload PLUS the wake extension (src/export_wake.py):
 
 Loop (wake mode — automatic when wake_model.onnx is present):
   rolling 3.0 s buffer, 1 s stride -> 2-class wake gate ("hey boots")
-  (RMS pre-gate 0.012 skips the model on silence; muji, 10-02)
+  (no RMS pre-gate — every window runs the wake model; muji, 10-03)
   on fire: ack beep -> 200 ms warm-up -> capture the command until
   1.0 s of RMS silence (max 3.5 s) -> right-pad to 3.0 s -> VCM infer
   -> fire beep + JSON line (printed and POSTed to the UI, /fire)
@@ -395,8 +395,16 @@ def main():
     cooldown = 0.0
     chunk_n = int(SR * CHUNK_S)
     buf = []
+    hb_last = time.time()
     while True:
         try:
+            # liveness tripwire: a wedged sd.InputStream.read() emits
+            # nothing forever, so a healthy loop must keep printing --
+            # one 'hb' line every 15 s. The supervisor restarts on silence.
+            _now = time.time()
+            if _now - hb_last >= 15:
+                hb_last = _now
+                print("hb", flush=True)
             in_cooldown = time.time() < cooldown
             wav = demo.capture(args.device, frames=chunk_n)
             buf.append(wav)
@@ -404,19 +412,6 @@ def main():
             if in_cooldown or len(buf) < IN_SAMPLES // chunk_n:
                 continue
             window = np.concatenate(buf)
-            window_rms = float(np.sqrt((window ** 2).mean()))
-            if window_rms < 0.012:
-                continue  # RMS pre-gate: silence, skip wake model
-            # voiced-duration gate (cough rejection, muji 10-03): a cough is a
-            # 0.2-0.5s transient, "hey boots" is 1-2s of sustained speech. Count
-            # 30ms frames above a speech floor; require >= 0.6s voiced. Model-
-            # agnostic, zero-latency (RMS over frames already in the window).
-            frame_n = int(SR * FRAME_MS / 1000)
-            voiced_frames = sum(
-                1 for i in range(0, len(window) - frame_n, frame_n)
-                if float(np.sqrt((window[i:i + frame_n] ** 2).mean())) > 0.008)
-            if voiced_frames * FRAME_MS < 600:
-                continue  # <0.6s voiced: cough/transient, skip wake model
             conf = demo.wake_conf(window)
             if conf < demo.wake_thr:
                 continue
