@@ -35,7 +35,7 @@ import numpy as np
 
 SR = 16000
 IN_SAMPLES = 48000  # 3.0 s
-CHUNK_S = 1.0       # wake-loop stride
+CHUNK_S = 0.25      # wake-loop stride (snappy 1006)
 FRAME_MS = 30       # endpointing frame
 
 
@@ -180,7 +180,7 @@ class Demo:
         return x[:, 0].astype(np.float32) / 32768.0
 
     def capture_command(self, device=None, min_rms: float = 0.004,
-                        warmup_ms: int = 200, silence_ms: int = 1000,
+                        warmup_ms: int = 200, silence_ms: int = 700,
                         max_ms: int = 3500):
         """After the wake fires: listen for the command. Returns (48000,)
         right-aligned float32, or None if nothing was heard.
