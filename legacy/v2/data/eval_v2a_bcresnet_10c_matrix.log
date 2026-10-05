@@ -1,0 +1,98 @@
+eval split=eval  n=23600
+device: cuda
+preload: 47200 raw files cached in RAM in 218.8s
+base features: 23600 cached (GPU cuda) in 26s
+
+=== V2 EVAL (eval, bcresnet, 10c) ===
+command acc: 0.9514  (22453/23600)   [v1i baseline: 0.8618]
+slot acc:    0.5512  (9757/17700)   (parametric clips with a slot)
+eval time: 8s
+
+per-class command acc:
+  play_music         0.922  (1937/2100)
+  ask_question       0.898  (2335/2600)
+  control_lights     0.981  (1373/1400)
+  dim_lights         0.960  (2496/2600)
+  set_timer          0.994  (2685/2700)
+  set_alarm          0.983  (5212/5300)
+  set_temperature    0.992  (2777/2800)
+  media_control      0.860  (1462/1700)
+  set_reminder       0.870  (870/1000)
+  make_call          0.933  (1306/1400)
+
+per-class slot acc:
+  dim_lights         0.612  (1591/2600)
+  set_timer          0.464  (1254/2700)
+  set_alarm          0.274  (1454/5300)
+  set_temperature    0.587  (1643/2800)
+  set_reminder       0.830  (830/1000)
+  make_call          0.918  (1285/1400)
+  play_music         0.895  (1700/1900)
+
+top command confusions (true -> pred):
+  ask_question       -> media_control       111
+  media_control      -> make_call           103
+  play_music         -> media_control       74
+  set_alarm          -> set_timer           66
+  media_control      -> play_music          61
+  dim_lights         -> control_lights      59
+  set_reminder       -> set_timer           50
+  ask_question       -> set_alarm           43
+  play_music         -> control_lights      42
+  make_call          -> media_control       42
+
+top slot confusions (class: true -> pred):
+  dim_lights: 'forty' -> 'ninety'  50
+  dim_lights: 'ninety' -> 'forty'  48
+  dim_lights: 'eighty' -> 'seventy'  47
+  set_timer: 'three' -> 'two'  41
+  set_timer: 'thirty' -> 'two'  40
+  set_timer: 'seven' -> 'fifteen'  39
+  set_alarm: 'ten am' -> 'five am'  52
+  set_alarm: 'twelve thirty am' -> 'eight am'  39
+  set_alarm: 'twelve am' -> 'five am'  39
+  set_temperature: 'twenty four' -> 'twenty one'  67
+  set_temperature: 'twenty one' -> 'twenty four'  63
+  set_temperature: 'twenty two' -> 'twenty three'  53
+  set_reminder: 'pay the bills' -> 'take out the trash'  26
+  set_reminder: 'drink water' -> 'tomorrow'  19
+  set_reminder: 'tomorrow' -> 'call mom'  15
+  make_call: 'dad' -> 'the doctor'  22
+  make_call: 'dad' -> 'friend'  18
+  make_call: 'dad' -> 'mom'  16
+  play_music: 'jetlag' -> 'finesse'  24
+  play_music: 'multo' -> 'yellow'  22
+  play_music: 'finesse' -> 'any'  20
+
+slot matrix set_reminder (rows=true, cols=pred):
+             buy groc  call mom  drink wa  pay the   take out  water th  the meet   five pm  tomorrow  next wee
+  buy grocer        87         0         0         1        10         0         2         0         0         0
+  call mom           0        93         0         0         0         1         0         0         6         0
+  drink wate         0         1        73         3         0         0         4         0        19         0
+  pay the bi         0         0         3        59        26         4         3         0         5         0
+  take out t         3         0         0         4        81         1         0         2         0         9
+  water the         11         0         0         6         0        82         1         0         0         0
+  the meetin         0         0         4         5         5         3        83         0         0         0
+  five pm            0         0         0         4         6         0         1        89         0         0
+  tomorrow           0        15         1         0         0         1         0         0        83         0
+  next week          0         0         0         0         0         0         0         0         0       100
+
+slot matrix make_call (rows=true, cols=pred):
+                  mom       dad   brother    sister    friend  the doct
+  mom              377        10        12         1         0         0
+  dad               16       343         1         0        18        22
+  brother            2        11       181         1         0         5
+  sister             0         0         0       200         0         0
+  friend             0         4         0         0        96         0
+  the doctor         0         8         4         0         0        88
+
+slot matrix play_music (rows=true, cols=pred):
+                  any    jetlag    yellow   finesse     multo      baby
+  any              889         0         0         6         0         5
+  jetlag             1       156         1        24        13         5
+  yellow             1         0       174         7        18         0
+  finesse           20        18         0       152         4         6
+  multo              1        16        22         2       154         5
+  baby               5        10         0         6         4       175
+
+report -> /home/jan.rhey.lagana/vcm/runs/v2a_bcresnet_10c/eval_eval.json

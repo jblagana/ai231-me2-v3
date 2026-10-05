@@ -1,0 +1,31 @@
+#cloud-config
+hostname: me2pi
+ssh_pwauth: true
+ssh:
+  install: openssh-server
+  enable: true
+users:
+  - name: jan
+    groups: [sudo, audio]
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+chpasswd:
+  list: ['jan:abcdefghij']
+  expire: false
+network:
+  version: 2
+  ethernets:
+    eth0:
+      optional: true
+      dhcp4: true
+      access-points:
+        hotspot_jan:
+          password: "abcdefghij"
+  wifis:
+    wlan0:
+      optional: true
+      dhcp4: true
+      access-points:
+        hotspot_jan:
+          password: "abcdefghij"
+

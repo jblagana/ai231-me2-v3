@@ -60,8 +60,8 @@
       },
       {
         "item": "Hours / utts",
-        "value": "81,768 clips \u00b7 train 10,733 / test 4,443 / holdout 202 \u00b7 \u224825\u201330 h audio (est.)",
-        "status": "estimate"
+        "value": "15,378 command clips (train 10,733 / test 4,443 / holdout 202); + 66,390-clip number-robustness bench",
+        "status": "known"
       },
       {
         "item": "Speakers",
@@ -165,7 +165,7 @@
         {
           "item": "Training logs + final model",
           "status": "released separately",
-          "note": "runs/v3r1/results.json + me2_vcm_v3.onnx (gitignored by design) \u2014 on Pi + HPC"
+          "note": "runs/v3r1/results.json + me2_vcm_v3.onnx (gitignored by design) \u2014 released separately in the submission zip"
         },
         {
           "item": "Pi 4 latency reproduced by the posted script",

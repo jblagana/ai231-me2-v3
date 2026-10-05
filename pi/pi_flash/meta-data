@@ -1,0 +1,5 @@
+# NoCloud seed metadata. Bump instance-id to force cloud-init to re-run
+# its once-per-instance config modules (network, users, hostname) on
+# the next boot.
+instance-id: me2-wifi-fix-2
+

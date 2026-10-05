@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BOOTS · ME2</title>
+<style>
+/* ============ THEME TOKENS ============ */
+@property --a{syntax:'<angle>';initial-value:0deg;inherits:false}
+:root{
+  --bg:#0d1117;--bg-grad:linear-gradient(170deg,#0d1117 0%,#111827 50%,#0d1117 100%);
+  --card:#161b22;--card2:#1c2230;--line:#21262d;--track:#21262d;
+  --tx:#e6edf3;--dim:#8b949e;
+  --blue:#58a6ff;--green:#3fb950;--amber:#d29922;--red:#f85149;
+  --glow-blue:rgba(88,166,255,.28);--glow-green:rgba(63,185,80,.30);
+  --shadow:0 1px 3px rgba(0,0,0,.5),0 4px 14px rgba(0,0,0,.3);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+  --accent-top:rgba(88,166,255,.08);
+}
+[data-theme="light"]{
+  --bg:#f0f3f7;--bg-grad:linear-gradient(170deg,#f8fafc 0%,#e8edf5 40%,#f0f3f7 100%);
+  --card:#ffffff;--card2:#f3f6fa;--line:#d8dee6;--track:#e8ecf1;
+  --tx:#1a202c;--dim:#5a6577;
+  --blue:#2563eb;--green:#16a34a;--amber:#d97706;--red:#dc2626;
+  --glow-blue:rgba(37,99,235,.22);--glow-green:rgba(22,163,74,.24);
+  --shadow:0 1px 3px rgba(0,0,0,.06),0 6px 20px rgba(0,0,0,.08);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.05);
+  --accent-top:rgba(37,99,235,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg-grad);background-attachment:fixed;color:var(--tx);min-height:100vh;
+  font:16px/1.5 -apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  display:flex;justify-content:center;padding:28px 16px;
+  transition:background .3s,color .3s}
+main{width:100%;max-width:640px}
+
+/* ============ HEADER ============ */
+header{display:flex;align-items:center;gap:10px;margin-bottom:16px;
+  padding:12px 16px;background:var(--card);border:1px solid var(--line);
+  border-radius:14px;box-shadow:var(--shadow-sm)}
+.lamp{width:12px;height:12px;border-radius:50%;background:var(--blue);
+  box-shadow:0 0 10px var(--blue);transition:background .3s}
+.lamp.awake{background:var(--green);box-shadow:0 0 10px var(--green)}
+.lamp.clarify{background:var(--amber);box-shadow:0 0 10px var(--amber)}
+.lamp.reject{background:var(--red);box-shadow:0 0 10px var(--red)}
+.brand{font-size:15px;font-weight:700;letter-spacing:.06em}
+.mode{font-size:11px;letter-spacing:.14em;color:var(--dim)}
+.mode.awake{color:var(--green)}
+.mode.clarify{color:var(--amber)}
+.mode.reject{color:var(--red)}
+.mode.slotfill,.mode.slotcheck{color:var(--amber)}
+.hright{margin-left:auto;display:flex;align-items:center;gap:14px}
+.hw{display:flex;align-items:center;gap:6px}
+.wicon{font-size:18px;line-height:1}
+.wtemp{font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}
+.wcond{font-size:11.5px;color:var(--dim)}
+.hclock{font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}
+.toggle{width:30px;height:30px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--line);background:var(--card2);color:var(--tx);
+  font-size:14px;display:flex;align-items:center;justify-content:center;
+  transition:background .2s,border-color .2s}
+.toggle:hover{border-color:var(--blue)}
+
+/* ============ BIG CARD (LAST COMMAND) ============ */
+.bigcard{position:relative;margin-bottom:16px;border-radius:15px}
+.bigcard::before{content:"";position:absolute;inset:-3px;border-radius:17px;
+  z-index:0;opacity:0;filter:blur(7px);
+  background:conic-gradient(from var(--a),
+    transparent 0deg,var(--green) 42deg,transparent 84deg,
+    transparent 180deg,var(--blue) 222deg,transparent 264deg);
+  transition:opacity .3s}
+/* amber variant for clarify/slot-fill */
+.bigcard.amber-glow::before{
+  background:conic-gradient(from var(--a),
+    transparent 0deg,var(--amber) 42deg,transparent 84deg,
+    transparent 180deg,var(--blue) 222deg,transparent 264deg)}
+.bigcard.listening{z-index:0}
+.bigcard.listening::before{opacity:.95;animation:spin 2.4s linear infinite}
+@keyframes spin{to{--a:360deg}}
+.bigcard .inner{position:relative;z-index:1;background:var(--card);
+  border:1px solid var(--line);border-radius:15px;padding:22px;
+  box-shadow:var(--shadow);transition:background .3s,border-color .3s;
+  border-top:2px solid var(--accent-top)}
+.k{font-size:11px;letter-spacing:.18em;color:var(--dim);margin-bottom:8px}
+.cmd{font-size:30px;font-weight:650}
+.cmd-ic{margin-right:10px;font-size:26px;vertical-align:-2px;display:inline-block}
+.cmd-ic[data-ico=timer]{animation:icoFlip 2s ease-in-out infinite}
+.cmd-ic[data-ico=alarm]{animation:icoRing .6s ease-in-out infinite}
+.cmd-ic[data-ico=music]{animation:icoBounce 1.2s ease-in-out infinite}
+.cmd-ic[data-ico=lights]{animation:icoPulse 2s ease-in-out infinite}
+.cmd-ic[data-ico=thermo]{animation:icoSpin 4s linear infinite}
+.cmd-ic[data-ico=ask]{animation:icoWiggle 1.5s ease-in-out infinite}
+.cmd-ic[data-ico=call]{animation:icoCall .5s ease-in-out infinite}
+@keyframes icoFlip{0%,40%{transform:translateY(-2px) rotate(0)}50%,90%{transform:translateY(-2px) rotate(180deg)}100%{transform:translateY(-2px) rotate(360deg)}}
+@keyframes icoRing{0%,100%{transform:translateY(-2px) rotate(0)}20%{transform:translateY(-2px) rotate(14deg)}40%{transform:translateY(-2px) rotate(-12deg)}60%{transform:translateY(-2px) rotate(8deg)}80%{transform:translateY(-2px) rotate(-6deg)}}
+@keyframes icoBounce{0%,100%{transform:translateY(-2px)}50%{transform:translateY(-8px)}}
+@keyframes icoPulse{0%,100%{transform:translateY(-2px) scale(1);opacity:1}50%{transform:translateY(-2px) scale(1.15);opacity:.8}}
+@keyframes icoSpin{from{transform:translateY(-2px) rotate(0)}to{transform:translateY(-2px) rotate(360deg)}}
+@keyframes icoWiggle{0%,100%{transform:translateY(-2px) rotate(0)}25%{transform:translateY(-2px) rotate(8deg)}75%{transform:translateY(-2px) rotate(-8deg)}}
+@keyframes icoCall{0%,100%{transform:translateY(-2px) rotate(0)}15%{transform:translateY(-2px) rotate(-20deg)}30%{transform:translateY(-2px) rotate(18deg)}45%{transform:translateY(-2px) rotate(-14deg)}60%{transform:translateY(-2px) rotate(10deg)}75%{transform:translateY(-2px) rotate(-6deg)}}
+.slot{font-size:20px;color:var(--blue);margin-top:2px}
+.slot.q{font-size:23px;font-weight:560;line-height:1.35;margin-top:6px;
+  padding:12px 14px;border-left:3px solid var(--blue);
+  background:var(--card2);border-radius:0 10px 10px 0}
+.slot.q .qtag{display:block;font-size:11px;letter-spacing:.14em;
+  color:var(--dim);margin-bottom:4px}
+.slot.dim{font-size:24px;font-weight:650;margin-top:4px;font-variant-numeric:tabular-nums}
+.slot.dim .arr{color:var(--dim);margin:0 8px;font-weight:400}
+.slot.dim .old{color:var(--dim);opacity:.7}
+.slot.dim .new{color:var(--blue)}
+.slot.none{color:var(--dim);font-size:15px}
+.slot.lowconf{color:var(--amber)}
+.bar{height:8px;background:var(--track);border-radius:4px;margin-top:14px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--blue);border-radius:4px;transition:width .3s}
+.meta{display:flex;gap:18px;margin-top:12px;font-size:12px;color:var(--dim)}
+.empty{font-size:17px;color:var(--dim)}
+.empty .hint{display:block;font-size:13px;margin-top:6px;opacity:.7}
+
+/* ============ CLARIFY / REJECT / SLOT-FILL STATES ============ */
+.clarify-msg{font-size:28px;color:var(--amber);font-weight:650;margin-bottom:12px}
+.clarify-sub{font-size:18px;color:#fff;margin-bottom:14px}
+.cand-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.cand{padding:8px 14px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;
+  border:1px solid var(--line);background:var(--card2);color:var(--tx);
+  transition:border-color .2s,background .2s,transform .1s}
+.cand:hover{border-color:var(--blue);background:var(--glow-blue);transform:translateY(-1px)}
+.cand .cand-conf{font-size:11px;color:var(--dim);font-weight:400;margin-left:6px}
+.reject-msg{font-size:28px;font-weight:650;color:var(--red);margin-bottom:8px}
+.reject-sub{font-size:18px;color:#fff;margin-bottom:8px}
+.slotfill-msg{font-size:28px;color:var(--amber);font-weight:650;margin-bottom:8px}
+.slotfill-prompt{font-size:18px;color:#fff;margin-bottom:8px}
+.slotfill-hint{font-size:13px;color:var(--dim)}
+.slotcheck-msg{font-size:28px;color:var(--amber);font-weight:650;margin-bottom:8px}
+.slotcheck-prompt{font-size:18px;color:#fff;margin-bottom:14px}
+.slotcheck-hint{font-size:13px;color:var(--dim);margin-top:10px}
+.retry-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;
+  color:var(--dim);background:var(--card2);padding:3px 8px;border-radius:6px;margin-top:10px}
+.retry-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--amber)}
+
+/* ============ DEVICES GRID ============ */
+h2{font-size:12px;letter-spacing:.16em;color:var(--dim);margin:0 0 10px 2px}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.tile{position:relative;background:var(--card);border:1px solid var(--line);
+  border-radius:14px;padding:16px;box-shadow:var(--shadow-sm);
+  transition:border-color .25s,box-shadow .25s}
+.tile.active{border-color:var(--blue);box-shadow:0 0 0 2px var(--glow-blue),var(--shadow)}
+.tk{font-size:10px;letter-spacing:.14em;color:var(--dim);margin-bottom:10px}
+.big{font-size:22px;font-weight:650}
+.big.mid{font-size:17px;line-height:1.3}
+.big.dim{color:var(--dim)}
+.sub{font-size:12px;color:var(--dim);margin-top:2px}
+.lampdot{width:44px;height:44px;border-radius:50%;background:var(--track);
+  margin-bottom:8px;transition:background .3s,box-shadow .3s}
+.lampdot.on{
+  background:radial-gradient(circle,#fff8e1 30%,#ffd54f 70%,#ffb300);
+  box-shadow:0 0 var(--glow,18px) rgba(255,213,79,.7);
+  animation:lampPulse 2s ease-in-out infinite}
+@keyframes lampPulse{
+  0%,100%{box-shadow:0 0 var(--glow,18px) rgba(255,213,79,.7)}
+  50%{box-shadow:0 0 calc(var(--glow,18px) * 1.5) rgba(255,213,79,.9)}}
+.lvl{height:6px;background:var(--track);border-radius:3px;overflow:hidden;margin-bottom:6px}
+.lvl i{display:block;height:100%;background:var(--amber);border-radius:3px;transition:width .3s}
+.lvltext{font-size:12px;color:var(--dim);font-weight:600}
+.lvltext.on{color:var(--amber)}
+/* thermostat */
+.thermo-big{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
+/* timer — static SVG arc */
+.twrap{display:flex;align-items:center;gap:12px}
+.tarc{width:56px;height:56px;flex-shrink:0}
+.tarc svg{width:100%;height:100%;transform:rotate(-90deg)}
+.tarc .bg{fill:none;stroke:var(--track);stroke-width:5}
+.tarc .fg{fill:none;stroke:var(--blue);stroke-width:5;stroke-linecap:round;
+  transition:stroke-dashoffset .5s ease}
+.tval{font-size:18px;font-weight:650;font-variant-numeric:tabular-nums}
+.tsub2{font-size:11px;color:var(--dim)}
+/* music */
+#mtrack{text-align:center}
+#t-music .mbtns{justify-content:center}
+.mbtns{display:flex;gap:6px;margin-top:10px}
+.mbtn{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);
+  background:var(--card2);color:var(--tx);font-size:13px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:background .2s,border-color .2s}
+.mbtn:hover{border-color:var(--blue);background:var(--glow-blue)}
+.mbtn.play{background:var(--blue);color:#fff;border-color:var(--blue)}
+/* music — progress bar + equalizer (2026-10-02) */
+.mprog{height:6px;background:var(--track);border-radius:3px;overflow:hidden;margin-top:12px}
+.mprog i{display:block;height:100%;width:0;background:var(--blue);border-radius:3px;
+  transition:width .5s linear}
+.mtime{font-size:11px;color:var(--dim);text-align:center;margin-top:5px;
+  font-variant-numeric:tabular-nums;min-height:14px}
+/* V3 volume bar (VOLUME_UP / VOLUME_DOWN) */
+.volrow{display:flex;align-items:center;gap:8px;margin-top:10px}
+.vollbl{font-size:10px;letter-spacing:.12em;color:var(--dim)}
+.volbar{flex:1;height:6px;background:var(--track);border-radius:3px;overflow:hidden}
+.volbar i{display:block;height:100%;background:var(--blue);border-radius:3px;transition:width .3s}
+.volval{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;min-width:20px;text-align:right}
+.meq{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:18px;margin-top:10px}
+.meq i{width:3px;height:100%;background:var(--blue);border-radius:2px;
+  transform-origin:bottom;transform:scaleY(.22);opacity:.45;
+  transition:transform .3s,opacity .3s}
+#t-music.playing .meq i{opacity:1;animation:eqB .9s ease-in-out infinite}
+#t-music.playing .meq i:nth-child(1){animation-duration:.85s;animation-delay:-.20s}
+#t-music.playing .meq i:nth-child(2){animation-duration:1.15s;animation-delay:-.55s}
+#t-music.playing .meq i:nth-child(3){animation-duration:.70s;animation-delay:-.10s}
+#t-music.playing .meq i:nth-child(4){animation-duration:1.25s;animation-delay:-.45s}
+#t-music.playing .meq i:nth-child(5){animation-duration:.95s;animation-delay:-.30s}
+@keyframes eqB{0%,100%{transform:scaleY(.22)}50%{transform:scaleY(1)}}
+/* chips (alarms, notes) */
+.chiprow{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;padding:4px 10px;border-radius:8px;background:var(--card2);
+  border:1px solid var(--line);font-weight:600}
+.chip.faded{color:var(--dim);opacity:.5}
+
+/* ============ MOCK CONTROL STRIP ============ */
+.mockbar{margin-top:20px;padding:14px 16px;background:var(--card);
+  border:1px dashed var(--line);border-radius:12px}
+.mockbar .mk{font-size:10px;letter-spacing:.14em;color:var(--dim);margin-bottom:8px}
+.mockbtns{display:flex;flex-wrap:wrap;gap:6px}
+.mockbtn{padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;
+  border:1px solid var(--line);background:var(--card2);color:var(--tx);cursor:pointer;
+  transition:border-color .2s,background .2s}
+.mockbtn:hover{border-color:var(--blue);background:var(--glow-blue)}
+.mockbtn.active{border-color:var(--blue);background:var(--glow-blue);color:var(--blue)}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="lamp" id="lamp"></div>
+  <span class="brand">BOOTS</span>
+  <span class="mode" id="mode">IDLE</span>
+  <div class="hright">
+    <div class="hw">
+      <span class="wicon" id="wicon">⛅</span>
+      <span class="wtemp" id="wtemp">23°</span>
+      <span class="wcond" id="wcond">Partly cloudy</span>
+    </div>
+    <span class="hclock" id="wtime-clock">--:--</span>
+    <button class="toggle" id="theme" title="toggle theme">◐</button>
+  </div>
+</header>
+
+<div class="bigcard" id="bigcard">
+  <div class="inner">
+    <div class="k">LAST COMMAND</div>
+    <div id="last"><div class="empty">waiting — say "Hey boots", then speak
+      your command<span class="hint">the big card glows around its edges while Boots is listening</span></div></div>
+  </div>
+</div>
+
+<h2>DEVICES</h2>
+<div class="tiles">
+  <div class="tile" id="t-lamp"><div class="tk">LIGHTS</div>
+    <div class="lampdot" id="lampdot"></div>
+    <div class="lvl"><i id="lvlbar" style="width:0%"></i></div>
+    <div class="lvltext" id="lvltext">OFF</div></div>
+  <div class="tile" id="t-thermo"><div class="tk">THERMOSTAT</div>
+    <div class="thermo-big" id="tcur">21.5°</div>
+    <div class="sub" id="tmode">set point</div></div>
+  <div class="tile" id="t-timer"><div class="tk">TIMER</div>
+    <div class="twrap">
+      <div class="tarc"><svg viewBox="0 0 56 56">
+        <circle class="bg" cx="28" cy="28" r="23"/>
+        <circle class="fg" id="tarc-fg" cx="28" cy="28" r="23"
+          stroke-dasharray="144.5" stroke-dashoffset="0"/>
+      </svg></div>
+      <div><div class="tval" id="ttext">—</div><div class="tsub2" id="tsub"></div></div>
+    </div></div>
+  <div class="tile" id="t-alarm"><div class="tk">ALARMS</div>
+    <div class="chiprow" id="alarms"><span class="chip faded">none</span></div></div>
+  <div class="tile" id="t-music"><div class="tk">MUSIC</div>
+    <div class="big mid dim" id="mtrack">nothing playing</div>
+    <div class="meq"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="mprog"><i id="mprog-fill"></i></div>
+    <div class="mtime" id="mtime"></div>
+    <div class="volrow">
+      <span class="vollbl">VOL</span>
+      <div class="volbar"><i id="volbar" style="width:60%"></i></div>
+      <span class="volval" id="volval">60</span>
+    </div>
+    <div class="mbtns">
+      <button class="mbtn" id="mprev" title="previous">⏮</button>
+      <button class="mbtn" id="mpb" title="play/pause">▶</button>
+      <button class="mbtn" id="mnext" title="next">⏭</button>
+    </div></div>
+  <div class="tile" id="t-notes"><div class="tk">NOTES</div>
+    <div class="chiprow" id="notes"><span class="chip faded">—</span></div></div>
+</div>
+
+</main>
+
+<script>
+// ---- helpers ----
+const $=id=>document.getElementById(id);
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+const fmtT=sec=>{sec=Math.max(0,Math.floor(sec||0));
+  const m=Math.floor(sec/60),s2=sec%60;
+  return m+':'+String(s2).padStart(2,'0');};
+function setTimerArc(frac){
+  const C=144.5;
+  $('tarc-fg').style.strokeDashoffset=C*(1-frac);
+}
+
+// ---- tile map: command → tile id ----
+const TILES={
+  PLAY_MUSIC:'t-music',VOLUME_UP:'t-music',VOLUME_DOWN:'t-music',
+  NEXT:'t-music',PAUSE:'t-music',STOP:'t-music',
+  LIGHT_ON:'t-lamp',LIGHT_OFF:'t-lamp',BRIGHTNESS:'t-lamp',COLOR:'t-lamp',
+  TEMPERATURE:'t-thermo',WEATHER:'t-thermo',TIME:'t-thermo',
+  TIMER:'t-timer',ALARM:'t-alarm',
+  CALL:'t-notes',MESSAGE:'t-notes',
+  CREATE_REMINDER:'t-notes',LIST_REMINDERS:'t-notes',
+  OUT_OF_SCOPE:null
+};
+// V3 command -> [icon, anim-key] (big-card done state)
+const ICONS={
+  PLAY_MUSIC:['🎵','music'],VOLUME_UP:['🔊','music'],VOLUME_DOWN:['🔉','music'],
+  NEXT:['⏭','music'],PAUSE:['⏸','music'],STOP:['⏹','music'],
+  LIGHT_ON:['💡','lights'],LIGHT_OFF:['🌙','lights'],
+  BRIGHTNESS:['🔆','lights'],COLOR:['🎨','lights'],
+  TEMPERATURE:['🌡️','thermo'],WEATHER:['⛅','thermo'],TIME:['🕐','thermo'],
+  TIMER:['⏳','timer'],ALARM:['⏰','alarm'],
+  CALL:['📞','call'],MESSAGE:['✉️','call'],
+  CREATE_REMINDER:['📝','call'],LIST_REMINDERS:['📋','call'],
+  OUT_OF_SCOPE:['🚫','']
+};
+
+// ---- clock ----
+function tick(){
+  const d=new Date();
+  $('wtime-clock').textContent=d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+}
+tick();setInterval(tick,1000);
+
+// ---- theme ----
+const saved=localStorage.getItem('me2-theme');
+if(saved)document.documentElement.dataset.theme=saved;
+$('theme').onclick=()=>{
+  const t=document.documentElement.dataset.theme==='light'?'dark':'light';
+  document.documentElement.dataset.theme=t;
+  localStorage.setItem('me2-theme',t);
+};
+
+// music transport buttons are inert in prod — voice drives the deck
+// (PLAY_MUSIC / VOLUME_UP-DOWN / NEXT / PAUSE / STOP update s.music from the server)
+
+// ---- DEMO STATES (including clarify / reject / slot-fill) ----
+const L0={on:false,level:0,color:'white'};
+const M0={track:'nothing playing',playing:false,vol:60};
+const DEMO=[
+  {label:'Idle',state:{mode:'idle',last:null,lamp:{...L0},thermo:21.5,music:{...M0}}},
+  {label:'Listening',state:{mode:'awake',last:null,lamp:{...L0},thermo:21.5,music:{...M0}}},
+  {label:'Play music',state:{mode:'done',last:{cmd:'PLAY_MUSIC',slot:null,conf:0.97,latency:128},
+    lamp:{...L0},thermo:21.5,music:{track:'jetlag',playing:true,vol:60,elapsed:84,duration:243,fraction:0.35}}},
+  {label:'Volume up',state:{mode:'done',last:{cmd:'VOLUME_UP',slot:null,conf:0.95,latency:120},
+    lamp:{...L0},thermo:21.5,music:{track:'jetlag',playing:true,vol:80,elapsed:84,duration:243,fraction:0.35}}},
+  {label:'Lights on',state:{mode:'done',last:{cmd:'LIGHT_ON',slot:null,conf:0.98,latency:125},
+    lamp:{on:true,level:80,color:'white'},thermo:21.5,music:{...M0}}},
+  {label:'Lamp color',state:{mode:'done',last:{cmd:'COLOR',slot:'red',conf:0.94,latency:126},
+    lamp:{on:true,level:70,color:'red'},thermo:21.5,music:{...M0}}},
+  {label:'Brightness',state:{mode:'done',last:{cmd:'BRIGHTNESS',slot:'60%',conf:0.96,latency:122},
+    lamp:{on:true,level:60,color:'white'},thermo:21.5,music:{...M0}}},
+  {label:'Temperature',state:{mode:'done',last:{cmd:'TEMPERATURE',slot:'22°',conf:0.97,latency:124},
+    lamp:{...L0},thermo:22,music:{...M0}}},
+  {label:'Set timer',state:{mode:'done',last:{cmd:'TIMER',slot:'0:30',conf:0.93,latency:130},
+    lamp:{...L0},thermo:21.5,music:{...M0}}},
+  {label:'Set alarm',state:{mode:'done',last:{cmd:'ALARM',slot:'8:00 AM',conf:0.95,latency:127},
+    lamp:{...L0},thermo:21.5,music:{...M0}}},
+  {label:'Weather',state:{mode:'done',last:{cmd:'WEATHER',slot:'23° partly cloudy',conf:0.96,latency:129},
+    lamp:{...L0},thermo:21.5,music:{...M0}}},
+  {label:'Time',state:{mode:'done',last:{cmd:'TIME',slot:'3:42 PM',conf:0.97,latency:121},
+    lamp:{...L0},thermo:21.5,music:{...M0}}},
+  {label:'Call',state:{mode:'done',last:{cmd:'CALL',slot:null,conf:0.94,latency:126},
+    lamp:{...L0},thermo:21.5,music:{...M0}}},
+  {label:'Reminder',state:{mode:'done',last:{cmd:'CREATE_REMINDER',slot:'drink water',conf:0.95,latency:125},
+    lamp:{...L0},thermo:21.5,music:{...M0}}},
+  // --- CLARIFY (middle confidence) ---
+  {label:'Clarify (mid)',state:{mode:'clarify',last:null,
+    candidates:[
+      {cmd:'TIMER',conf:0.44,label:'Timer'},
+      {cmd:'ALARM',conf:0.31,label:'Alarm'},
+      {cmd:'CREATE_REMINDER',conf:0.15,label:'Reminder'}
+    ],
+    retries:1,
+    lamp:{...L0},thermo:21.5,music:{...M0}}},
+  // --- REJECT (low confidence / OUT_OF_SCOPE) ---
+  {label:'Reject (OOS)',state:{mode:'reject',last:null,retries:1,
+    lamp:{...L0},thermo:21.5,music:{...M0}}},
+  // --- SLOT-FILL (command confident, slot missing) ---
+  {label:'Slot fill (timer)',state:{mode:'slotfill',
+    last:{cmd:'TIMER',slot:null,missing:'duration'},
+    slotPrompt:'for how long?',
+    lamp:{...L0},thermo:21.5,music:{...M0}}},
+  // --- SLOT-CHECK (command confident, slot low margin) ---
+  {label:'Slot check (alarm)',state:{mode:'slotcheck',
+    last:{cmd:'ALARM',slot:'8:00 AM',slotAlt:'6:00 AM',slotConf:0.31,slotAltConf:0.28,margin:0.03},
+    slotPrompt:'did you mean.',
+    lamp:{...L0},thermo:21.5,music:{...M0}}},
+];
+
+// ---- render ----
+function render(s){
+  const bc=$('bigcard');
+  const last=s.last;
+  const mode=s.mode;
+
+  // header lamp + mode
+  const lamp=$('lamp');
+  lamp.className='lamp';
+  const modeEl=$('mode');
+  modeEl.className='mode';
+
+  if(mode==='awake'){lamp.classList.add('awake');modeEl.textContent='SPEAK NOW';modeEl.classList.add('awake')}
+  else if(mode==='clarify'){lamp.classList.add('clarify');modeEl.textContent='CLARIFY';modeEl.classList.add('clarify')}
+  else if(mode==='reject'){lamp.classList.add('reject');modeEl.textContent='RETRY';modeEl.classList.add('reject')}
+  else if(mode==='slotfill'){lamp.classList.add('clarify');modeEl.textContent='NEED DETAIL';modeEl.classList.add('slotfill')}
+  else if(mode==='slotcheck'){lamp.classList.add('clarify');modeEl.textContent='SLOT CHECK';modeEl.classList.add('slotcheck')}
+  else if(mode==='done'){modeEl.textContent='DONE'}
+  else{modeEl.textContent='IDLE'}
+
+  // big card: edge glow for listening states (awake, clarify, reject, slotfill)
+  bc.classList.toggle('listening',mode==='awake'||mode==='clarify'||mode==='reject'||mode==='slotfill'||mode==='slotcheck');
+  bc.classList.toggle('amber-glow',mode==='clarify'||mode==='slotfill'||mode==='reject'||mode==='slotcheck');
+
+  // big card content
+  const lastEl=$('last');
+  if(mode==='idle'){
+    lastEl.innerHTML='<div class="empty">waiting — say "Hey boots", then speak\n      your command<span class="hint">the big card glows around its edges while Boots is listening</span></div>';
+  }else if(mode==='awake'){
+    lastEl.innerHTML='<div class="cmd" style="color:var(--green)">Listening…</div><div class="slot none">speak now</div>';
+  }else if(mode==='clarify'){
+    // candidates as tappable chips
+    const cands=s.candidates||[];
+    let chips=cands.map(c=>
+      `<div class="cand" data-cmd="${c.cmd}">${esc(c.label)}<span class="cand-conf">${Math.round(c.conf*100)}%</span></div>`
+    ).join('');
+    const retryBadge=s.retries?`<div class="retry-badge"><span class="dot"></span>attempt ${s.retries}/2</div>`:'';
+    lastEl.innerHTML=`<div class="clarify-msg">Didn't quite catch that</div>
+      <div class="clarify-sub">Did you mean one of these?</div>
+      <div class="cand-row">${chips}</div>
+      ${retryBadge}`;
+    // MOCKUP-ONLY: prod chip tap POSTs the choice to the Pi
+    lastEl.querySelectorAll('.cand').forEach(el=>{
+      el.onclick=()=>{
+        const cmd=el.dataset.cmd;
+        const d=DEMO.find(x=>x.state.last&&x.state.last.cmd===cmd);
+        if(d)showState(d);
+      };
+    });
+  }else if(mode==='reject'){
+    const retryBadge=s.retries?`<div class="retry-badge"><span class="dot"></span>attempt ${s.retries}/2</div>`:'';
+    lastEl.innerHTML=`<div class="reject-msg">Didn't catch that</div>
+      <div class="reject-sub">Please speak again.</div>
+      ${retryBadge}`;
+  }else if(mode==='slotfill'){
+    const cmdLabel=last?cap(last.cmd.replace(/_/g,' ')):'';
+    lastEl.innerHTML=`<div class="slotfill-msg">Got it — ${esc(cmdLabel)}</div>
+      <div class="slotfill-prompt">${esc(s.slotPrompt||'…')}</div>`;
+  }else if(mode==='slotcheck'&&last){
+    const cmdLabel=cap(last.cmd.replace(/_/g,' '));
+    const slotVal=esc(last.slot||'');
+    const slotAlt=esc(last.slotAlt||'');
+    const confPct=Math.round((last.slotConf||0)*100);
+    const altPct=Math.round((last.slotAltConf||0)*100);
+    lastEl.innerHTML=`<div class="slotcheck-msg">${esc(cmdLabel)} for ${slotVal}</div>
+      <div class="slotcheck-prompt">${esc(s.slotPrompt||'did you mean')}</div>
+      <div class="cand-row">
+        <div class="cand" data-choice="heard">${slotVal}<span class="cand-conf">${confPct}%</span></div>
+        <div class="cand" data-choice="alt">${slotAlt}<span class="cand-conf">${altPct}%</span></div>
+      </div>
+      <div class="slotcheck-hint">or say it again</div>`;
+    // MOCKUP-ONLY: prod chip tap POSTs the choice to the Pi
+    lastEl.querySelectorAll('.cand').forEach(el=>{
+      el.onclick=()=>{
+        const choice=el.dataset.choice;
+        if(choice==='alt'){
+          const tmp=last.slot;
+          last.slot=last.slotAlt;
+          last.slotAlt=tmp;
+        }
+        s.mode='done';
+        render(s);
+      };
+    });
+  }else if(mode==='done'&&last){
+    const c=last.cmd;
+    const [icon,icoKey]=(typeof ICONS!=='undefined'&&ICONS[c])?ICONS[c]:['⚙',''];
+    const verb=cap(c.replace(/_/g,' '));
+    let slotHtml='';
+    if(last.slot){
+      const lowConf=last.slotMargin!==undefined&&last.slotMargin<0.15;
+      slotHtml=`<div class="slot${lowConf?' lowconf':''}">${esc(last.slot)}</div>`;
+    }else{
+      slotHtml='<div class="slot none">—</div>';
+    }
+    const conf=last.conf!==undefined?last.conf:0.97;
+    const lat=last.latency!==undefined?last.latency:128;
+    lastEl.innerHTML=`<div class="cmd"><span class="cmd-ic"${icoKey?` data-ico="${icoKey}"`:''}>${icon}</span>${esc(verb)}</div>${slotHtml}
+      <div class="meta"><span>conf ${conf.toFixed(2)}</span><span>${lat} ms</span></div>`;
+  }else{
+    lastEl.innerHTML='<div class="empty">—</div>';
+  }
+
+  // tiles: only the matching one glows
+  document.querySelectorAll('.tile').forEach(t=>t.classList.remove('active'));
+  if(s.last&&TILES[s.last.cmd])
+    document.getElementById(TILES[s.last.cmd]).classList.add('active');
+
+  // lights
+  const lamp2=s.lamp||{on:false,level:0,color:'white'};
+  const ld=$('lampdot');
+  ld.classList.toggle('on',lamp2.on);
+  ld.style.setProperty('--glow',lamp2.on?Math.round(8+lamp2.level*0.32)+'px':'0px');
+  if(lamp2.on){
+    const chx={white:'#ffd54f',red:'#ff6b6b',blue:'#4dabf7',green:'#51cf66'}[lamp2.color]||'#ffd54f';
+    ld.style.background='radial-gradient(circle,#fff8e1 30%,'+chx+' 70%,'+chx+')';
+  }else{ld.style.background='';}
+  $('lvlbar').style.width=lamp2.on?lamp2.level+'%':'0%';
+  const lt=$('lvltext');
+  lt.textContent=lamp2.on?('ON · '+lamp2.level+'%'
+    +((lamp2.color&&lamp2.color!=='white')?' · '+lamp2.color:'')):'OFF';
+  lt.classList.toggle('on',lamp2.on);
+
+  // thermostat
+  $('tcur').textContent=(s.thermo??21.5)+'°';
+
+  // timer — real device state in live mode (s.timer present);
+  // ?d= previews keep the mockup's static behaviour
+  if('timer' in s){
+    const T=s.timer;
+    if(T&&!T.done){
+      const r=Math.max(0,T.remaining|0);
+      $('ttext').textContent=Math.floor(r/60)+':'+String(r%60).padStart(2,'0');
+      $('tsub').textContent='counting down';
+      setTimerArc(T.frac_left||0);
+    }else if(T){
+      $('ttext').textContent='done';$('tsub').textContent='';setTimerArc(0);
+    }else{
+      $('ttext').textContent='—';$('tsub').textContent='';setTimerArc(0);
+    }
+  }else{
+    const timerActive=s.last&&s.last.cmd==='TIMER'&&s.mode==='done';
+    if(timerActive){
+      $('ttext').textContent=s.last.slot||'5:00';
+      $('tsub').textContent='counting down';
+      setTimerArc(1);
+    }else{
+      $('ttext').textContent='04:32';
+      $('tsub').textContent='';
+      setTimerArc(0.75);
+    }
+  }
+
+  // alarms — real list in live mode
+  if('alarms' in s){
+    const A=s.alarms||[];
+    $('alarms').innerHTML=A.length
+      ?A.map(a=>'<span class="chip">'+esc(a)+'</span>').join('')
+      :'<span class="chip faded">none</span>';
+  }else{
+    const alarmActive=s.last&&s.last.cmd==='ALARM'&&s.mode==='done';
+    $('alarms').innerHTML=`<span class="chip${alarmActive?'':' faded'}">${alarmActive?esc(s.last.slot):'7:00 AM'}</span>`;
+  }
+
+  // music — track + equalizer + progress bar + elapsed/duration
+  const music=s.music||{track:'nothing playing',playing:false,vol:60};
+  const mt=$('mtrack');
+  mt.textContent=music.track;
+  mt.classList.toggle('dim',!music.playing);
+  $('mpb').textContent=music.playing?'⏸':'▶';
+  $('mpb').classList.toggle('play',music.playing);
+  $('t-music').classList.toggle('playing',!!music.playing);
+  const frac=Math.max(0,Math.min(1,(music.fraction!=null?music.fraction:0)));
+  $('mprog-fill').style.width=(frac*100).toFixed(1)+'%';
+  $('mtime').textContent=(music.duration!=null)
+    ?fmtT(music.elapsed||0)+' / '+fmtT(music.duration)
+    :'';
+  if($('volbar')){
+    $('volbar').style.width=(music.vol!=null?music.vol:0)+'%';
+    $('volval').textContent=(music.vol!=null?music.vol:0);
+  }
+
+  // notes — real reminders + recent event chips in live mode
+  if('notes' in s){
+    const N=s.notes||[];
+    $('notes').innerHTML=N.length
+      ?N.map(n=>'<span class="chip">'+esc(n)+'</span>').join('')
+      :'<span class="chip faded">—'+'</span>';
+  }else{
+    const notesActive=s.last&&(s.last.cmd==='CREATE_REMINDER'||s.last.cmd==='CALL'||s.last.cmd==='LIST_REMINDERS')&&s.mode==='done';
+    $('notes').innerHTML=`<span class="chip${notesActive?'':' faded'}">${notesActive?esc(s.last.slot):'—'}</span>`;
+  }
+
+  // thermostat sub + weather — live mode (server fetch, fail-soft)
+  if(s.tmode)$('tmode').textContent=s.tmode;
+  if('weather' in s){
+    if(s.weather){
+      $('wicon').textContent=s.weather.icon||'—';
+      $('wtemp').textContent=Math.round(s.weather.temp)+'°';
+      $('wcond').textContent=s.weather.condition||'';
+    }else{
+      $('wicon').textContent='—';$('wtemp').textContent='—';$('wcond').textContent='';
+    }
+  }
+}
+
+// ?d=<idx> still previews DEMO states (handover §13); live mode is below
+function showState(d,idx){
+  document.querySelectorAll('.mockbtn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  render(d.state);
+}
+
+// ---- URL params for quick preview: ?d=<idx> &theme=light|dark ----
+const params=new URLSearchParams(location.search);
+if(params.get('theme')){
+  document.documentElement.dataset.theme=params.get('theme');
+  localStorage.setItem('me2-theme',params.get('theme'));
+}
+const di=parseInt(params.get('d'));
+if(!isNaN(di)&&DEMO[di])showState(DEMO[di],di);
+else if(location.protocol!=='file:'){
+  // LIVE mode — poll the Pi UI server (handover §7 data model, 1 Hz)
+  async function live(){
+    try{render(await (await fetch('/ui_state')).json());}catch(e){}
+  }
+  live();setInterval(live,1000);
+}else showState(DEMO[0],0);
+</script>
+</body>
+</html>

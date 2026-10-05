@@ -1,0 +1,33 @@
+{
+  "arch": "bcresnet",
+  "scale": 2,
+  "n_classes": 20,
+  "heads": {
+    "TIMER": 3,
+    "ALARM": 3,
+    "TEMPERATURE": 3,
+    "BRIGHTNESS": 3,
+    "COLOR": 3,
+    "CREATE_REMINDER": 3
+  },
+  "feature": "log10 mel (1, 80, 150); 3.0 s, 16 kHz, 20 ms hop",
+  "opset": 17,
+  "input": [
+    "mel"
+  ],
+  "outputs": [
+    "command_logits",
+    "slot_TIMER",
+    "slot_ALARM",
+    "slot_TEMPERATURE",
+    "slot_BRIGHTNESS",
+    "slot_COLOR",
+    "slot_CREATE_REMINDER"
+  ],
+  "params": 30134,
+  "size_kb": 171.9,
+  "checkpoint": "runs/v3r1/checkpoint_best.pt",
+  "epoch": 142,
+  "git_hash": "97fc4ba",
+  "feature_policy": "policy-v2: 3.0s window right-aligned to min(d, t1+1.0s); 16 kHz; 80-mel log10; 150 frames; VAD 10ms rms>max(1e-3,0.10*peak) (tools/vad_audit.py); no-voiced -> file-end fallback; dataset = JFS rev 6947f130 default; slot read region 2.0s (10-02 amend)"
+}

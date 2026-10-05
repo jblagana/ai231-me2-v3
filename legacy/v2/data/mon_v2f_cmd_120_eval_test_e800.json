@@ -1,0 +1,98 @@
+{
+ "split": "test",
+ "n": 11800,
+ "cmd_acc": 0.9955084745762712,
+ "slot_acc": 0.0,
+ "pipe_acc": null,
+ "pipe_n": 0,
+ "per_class_cmd": {
+  "play_music": {
+   "acc": 0.9780952380952381,
+   "n": 1050
+  },
+  "ask_question": {
+   "acc": 0.9969230769230769,
+   "n": 1300
+  },
+  "control_lights": {
+   "acc": 0.9785714285714285,
+   "n": 700
+  },
+  "dim_lights": {
+   "acc": 0.9961538461538462,
+   "n": 1300
+  },
+  "set_timer": {
+   "acc": 1.0,
+   "n": 1350
+  },
+  "set_alarm": {
+   "acc": 0.9996226415094339,
+   "n": 2650
+  },
+  "set_temperature": {
+   "acc": 0.9992857142857143,
+   "n": 1400
+  },
+  "media_control": {
+   "acc": 0.9988235294117647,
+   "n": 850
+  },
+  "set_reminder": {
+   "acc": 0.998,
+   "n": 500
+  },
+  "make_call": {
+   "acc": 0.9971428571428571,
+   "n": 700
+  }
+ },
+ "per_class_slot": {
+  "dim_lights": {
+   "acc": 0,
+   "n": 0
+  },
+  "set_timer": {
+   "acc": 0,
+   "n": 0
+  },
+  "set_alarm": {
+   "acc": 0,
+   "n": 0
+  },
+  "set_temperature": {
+   "acc": 0,
+   "n": 0
+  },
+  "set_reminder": {
+   "acc": 0,
+   "n": 0
+  },
+  "make_call": {
+   "acc": 0,
+   "n": 0
+  },
+  "play_music": {
+   "acc": 0,
+   "n": 0
+  }
+ },
+ "top_confusions": {
+  "play_music->media_control": 18,
+  "play_music->make_call": 5,
+  "control_lights->ask_question": 5,
+  "control_lights->make_call": 5,
+  "dim_lights->control_lights": 5,
+  "ask_question->media_control": 4,
+  "control_lights->media_control": 4,
+  "make_call->media_control": 2,
+  "control_lights->play_music": 1,
+  "set_alarm->set_reminder": 1,
+  "set_temperature->media_control": 1,
+  "media_control->play_music": 1,
+  "set_reminder->set_temperature": 1
+ },
+ "slot_confusions": {},
+ "slot_matrix": {},
+ "calib": null
+}

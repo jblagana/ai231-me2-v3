@@ -1,0 +1,20 @@
+network:
+  version: 2
+  ethernets:
+    eth0:
+      optional: true
+      dhcp4: true
+      access-points:
+        hotspot_jan:
+          password: "abcdefghij"
+    eth1:
+      dhcp4: true
+  wifis:
+    wlan0:
+      optional: true
+      dhcp4: true
+      access-points:
+        hotspot_jan:
+          password: "abcdefghij"
+
+

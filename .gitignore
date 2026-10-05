@@ -1,20 +1,22 @@
-# data corpus (4 GB) â€” gitignored; small metadata artifacts stay tracked
+# data corpus (4 GB) — gitignored; small metadata artifacts stay tracked
 data/*
 !data/*.txt
 !data/*.xlsx
 !data/manifests/
 !data/mel_buffers/
-
-# training outputs / checkpoints â€” released separately
+# training outputs / checkpoints — released separately
 runs/
 *.pt
-*.onnx
-models/
-
-# third-party benchmark â€” clone separately (see README); avoid a drifting copy
+!models/me2_vcm_v3.onnx
+!models/me2_vcm_v3.meta.json
+# legacy V2 archive: code + docs tracked; the V2 dataset (WAVs) stays out
+legacy/v2/data/pi_music/
+legacy/v2/data/pi_takes/
+legacy/v2/data/pi_pkg_v2e_ep800/
+*.wav
+# third-party benchmark — clone separately (see README); avoid a drifting copy
 third_party/
 *.zip
-
 # env / caches / OS
 __pycache__/
 *.pyc
@@ -23,11 +25,10 @@ hf_cache/
 *.flag
 .DS_Store
 Thumbs.db
-
 # internal working docs (local only, not in the public repo)
 BENCHMARK.md
 DECISIONS.md
 INSTRUCTIONS.md
 JOURNAL.md
 SUBMISSION.md
-
+scratch/

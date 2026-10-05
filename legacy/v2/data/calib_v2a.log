@@ -1,0 +1,196 @@
+eval split=eval  n=23600
+device: cuda
+preload: 47200 raw files cached in RAM in 253.0s
+base features: 23600 cached (GPU cuda) in 27s
+
+=== V2 EVAL (eval, bcresnet, 10c) ===
+command acc: 0.9514  (22453/23600)   [v1i baseline: 0.8618]
+slot acc:    0.5512  (9757/17700)   (parametric clips with a slot)
+eval time: 6s
+
+per-class command acc:
+  play_music         0.922  (1937/2100)
+  ask_question       0.898  (2335/2600)
+  control_lights     0.981  (1373/1400)
+  dim_lights         0.960  (2496/2600)
+  set_timer          0.994  (2685/2700)
+  set_alarm          0.983  (5212/5300)
+  set_temperature    0.992  (2777/2800)
+  media_control      0.860  (1462/1700)
+  set_reminder       0.870  (870/1000)
+  make_call          0.933  (1306/1400)
+
+per-class slot acc:
+  dim_lights         0.612  (1591/2600)
+  set_timer          0.464  (1254/2700)
+  set_alarm          0.274  (1454/5300)
+  set_temperature    0.587  (1643/2800)
+  set_reminder       0.830  (830/1000)
+  make_call          0.918  (1285/1400)
+  play_music         0.895  (1700/1900)
+
+top command confusions (true -> pred):
+  ask_question       -> media_control       111
+  media_control      -> make_call           103
+  play_music         -> media_control       74
+  set_alarm          -> set_timer           66
+  media_control      -> play_music          61
+  dim_lights         -> control_lights      59
+  set_reminder       -> set_timer           50
+  ask_question       -> set_alarm           43
+  play_music         -> control_lights      42
+  make_call          -> media_control       42
+
+top slot confusions (class: true -> pred):
+  dim_lights: 'forty' -> 'ninety'  50
+  dim_lights: 'ninety' -> 'forty'  48
+  dim_lights: 'eighty' -> 'seventy'  47
+  set_timer: 'three' -> 'two'  41
+  set_timer: 'thirty' -> 'two'  40
+  set_timer: 'seven' -> 'fifteen'  39
+  set_alarm: 'ten am' -> 'five am'  52
+  set_alarm: 'twelve thirty am' -> 'eight am'  39
+  set_alarm: 'twelve am' -> 'five am'  39
+  set_temperature: 'twenty four' -> 'twenty one'  67
+  set_temperature: 'twenty one' -> 'twenty four'  63
+  set_temperature: 'twenty two' -> 'twenty three'  53
+  set_reminder: 'pay the bills' -> 'take out the trash'  26
+  set_reminder: 'drink water' -> 'tomorrow'  19
+  set_reminder: 'tomorrow' -> 'call mom'  15
+  make_call: 'dad' -> 'the doctor'  22
+  make_call: 'dad' -> 'friend'  18
+  make_call: 'dad' -> 'mom'  16
+  play_music: 'jetlag' -> 'finesse'  24
+  play_music: 'multo' -> 'yellow'  22
+  play_music: 'finesse' -> 'any'  20
+
+slot matrix set_reminder (rows=true, cols=pred):
+             buy groc  call mom  drink wa  pay the   take out  water th  the meet   five pm  tomorrow  next wee
+  buy grocer        87         0         0         1        10         0         2         0         0         0
+  call mom           0        93         0         0         0         1         0         0         6         0
+  drink wate         0         1        73         3         0         0         4         0        19         0
+  pay the bi         0         0         3        59        26         4         3         0         5         0
+  take out t         3         0         0         4        81         1         0         2         0         9
+  water the         11         0         0         6         0        82         1         0         0         0
+  the meetin         0         0         4         5         5         3        83         0         0         0
+  five pm            0         0         0         4         6         0         1        89         0         0
+  tomorrow           0        15         1         0         0         1         0         0        83         0
+  next week          0         0         0         0         0         0         0         0         0       100
+
+slot matrix make_call (rows=true, cols=pred):
+                  mom       dad   brother    sister    friend  the doct
+  mom              377        10        12         1         0         0
+  dad               16       343         1         0        18        22
+  brother            2        11       181         1         0         5
+  sister             0         0         0       200         0         0
+  friend             0         4         0         0        96         0
+  the doctor         0         8         4         0         0        88
+
+slot matrix play_music (rows=true, cols=pred):
+                  any    jetlag    yellow   finesse     multo      baby
+  any              889         0         0         6         0         5
+  jetlag             1       156         1        24        13         5
+  yellow             1         0       174         7        18         0
+  finesse           20        18         0       152         4         6
+  multo              1        16        22         2       154         5
+  baby               5        10         0         6         4       175
+
+=== SLOT CONFIDENCE CALIBRATION (command-correct clips; accept if top1-top2 margin >= θ) ===
+
+  ALL              n=17089  base-err   0.455
+    θ      ask%   accept-err   ask-err
+    0.05   18.4%        0.375       0.805
+    0.10   28.2%        0.328       0.778
+    0.15   35.6%        0.285       0.762
+    0.20   40.7%        0.253       0.749
+    0.30   48.8%        0.197       0.725
+    0.40   54.1%        0.158       0.706
+    0.50   57.7%        0.128       0.693
+    0.60   60.7%        0.106       0.680
+    0.70   63.8%        0.089       0.662
+
+  dim_lights       n= 2496  base-err   0.398
+    θ      ask%   accept-err   ask-err
+    0.05   11.3%        0.360       0.695
+    0.10   20.2%        0.336       0.646
+    0.15   28.8%        0.298       0.646
+    0.20   34.7%        0.267       0.645
+    0.30   44.4%        0.207       0.637
+    0.40   49.6%        0.175       0.625
+    0.50   53.4%        0.155       0.611
+    0.60   56.0%        0.136       0.604
+    0.70   59.1%        0.113       0.596
+
+  set_timer        n= 2685  base-err   0.536
+    θ      ask%   accept-err   ask-err
+    0.05   16.1%        0.494       0.751
+    0.10   28.8%        0.454       0.736
+    0.15   39.1%        0.405       0.739
+    0.20   46.3%        0.361       0.738
+    0.30   57.8%        0.293       0.712
+    0.40   66.0%        0.222       0.697
+    0.50   71.1%        0.172       0.683
+    0.60   74.8%        0.134       0.671
+    0.70   78.1%        0.114       0.653
+
+  set_alarm        n= 5212  base-err   0.727
+    θ      ask%   accept-err   ask-err
+    0.05   39.8%        0.639       0.859
+    0.10   55.2%        0.576       0.849
+    0.15   65.1%        0.521       0.837
+    0.20   70.8%        0.480       0.828
+    0.30   78.3%        0.408       0.815
+    0.40   82.9%        0.342       0.806
+    0.50   85.7%        0.278       0.802
+    0.60   87.6%        0.231       0.797
+    0.70   89.0%        0.191       0.793
+
+  set_temperature  n= 2777  base-err   0.412
+    θ      ask%   accept-err   ask-err
+    0.05   11.5%        0.381       0.648
+    0.10   21.0%        0.356       0.623
+    0.15   29.0%        0.330       0.614
+    0.20   36.6%        0.307       0.594
+    0.30   50.1%        0.245       0.579
+    0.40   58.7%        0.210       0.554
+    0.50   64.8%        0.169       0.544
+    0.60   70.1%        0.143       0.526
+    0.70   75.9%        0.118       0.505
+
+  set_reminder     n=  870  base-err   0.168
+    θ      ask%   accept-err   ask-err
+    0.05    1.7%        0.158       0.733
+    0.10    3.2%        0.153       0.607
+    0.15    4.6%        0.149       0.550
+    0.20    5.5%        0.150       0.479
+    0.30    7.6%        0.144       0.455
+    0.40   10.3%        0.138       0.422
+    0.50   12.9%        0.135       0.393
+    0.60   16.8%        0.122       0.397
+    0.70   21.4%        0.110       0.382
+
+  make_call        n= 1306  base-err   0.067
+    θ      ask%   accept-err   ask-err
+    0.05    0.5%        0.065       0.429
+    0.10    0.8%        0.064       0.455
+    0.15    1.1%        0.064       0.333
+    0.20    1.7%        0.061       0.455
+    0.30    2.5%        0.057       0.455
+    0.40    3.8%        0.053       0.449
+    0.50    5.2%        0.048       0.426
+    0.60    6.7%        0.042       0.420
+    0.70    8.5%        0.039       0.369
+
+  play_music       n= 1743  base-err   0.098
+    θ      ask%   accept-err   ask-err
+    0.05    1.1%        0.091       0.650
+    0.10    2.2%        0.087       0.579
+    0.15    2.9%        0.084       0.540
+    0.20    3.8%        0.081       0.515
+    0.30    6.0%        0.070       0.538
+    0.40    8.2%        0.060       0.517
+    0.50   10.2%        0.052       0.503
+    0.60   13.0%        0.044       0.458
+    0.70   16.7%        0.038       0.395
+
+report -> /home/jan.rhey.lagana/vcm/runs/v2a_bcresnet_10c/eval_eval.json

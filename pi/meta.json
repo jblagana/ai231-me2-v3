@@ -1,0 +1,40 @@
+{
+ "model": "bcresnet",
+ "n_classes": 20,
+ "classes": [
+  "PLAY_MUSIC", "VOLUME_UP", "VOLUME_DOWN", "NEXT", "PAUSE", "STOP",
+  "LIGHT_ON", "LIGHT_OFF", "BRIGHTNESS", "COLOR",
+  "TEMPERATURE",
+  "WEATHER", "TIME",
+  "TIMER", "ALARM",
+  "CALL", "MESSAGE",
+  "CREATE_REMINDER", "LIST_REMINDERS",
+  "OUT_OF_SCOPE"
+ ],
+ "parametric": [
+  "TIMER", "ALARM", "TEMPERATURE", "BRIGHTNESS", "COLOR", "CREATE_REMINDER"
+ ],
+ "slot_vocab": {
+  "TIMER": ["10 seconds", "30 seconds", "1 minute"],
+  "ALARM": ["6 AM", "8 AM", "9 PM"],
+  "TEMPERATURE": ["18 degrees", "22 degrees", "26 degrees"],
+  "BRIGHTNESS": ["20 percent", "60 percent", "100 percent"],
+  "COLOR": ["red", "blue", "green"],
+  "CREATE_REMINDER": ["drink water", "study", "exercise"]
+ },
+ "slot_counts": {
+  "TIMER": 3, "ALARM": 3, "TEMPERATURE": 3,
+  "BRIGHTNESS": 3, "COLOR": 3, "CREATE_REMINDER": 3
+ },
+ "outputs": [
+  "command_logits", "slot_TIMER", "slot_ALARM", "slot_TEMPERATURE",
+  "slot_BRIGHTNESS", "slot_COLOR", "slot_CREATE_REMINDER"
+ ],
+ "opset": 17,
+ "sr": 16000,
+ "in_samples": 48000,
+ "window_s": 3.0,
+ "n_mels": 80,
+ "n_frames": 150,
+ "ckpt": "runs/v3r1/checkpoint_best.pt"
+}

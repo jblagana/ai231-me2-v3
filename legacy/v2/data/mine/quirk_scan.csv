@@ -1,0 +1,72 @@
+term,class,count,example
+forecast,WEATHER,131,What is the weather forecast for Chicago?
+current,TIME,118,What is the current time?
+current,UNKNOWN,37,What's the current breaking news about the economy?
+current,WEATHER,52,"Ollie, what's the current weather?"
+switch,LIGHT_DIM,1,Turn down the bright switch.
+switch,LIGHT_OFF,350,Switch the lights off.
+switch,LIGHT_ON,361,Switch on the Keepsun light.
+brightness,LIGHT_DIM,119,Turn down the brightness.
+stop,MEDIA_NEXT,5,next stop
+stop,MEDIA_STOP,539,Stop.
+stop,PLAY_MUSIC,1,Stop the music
+stop,SET_ALARM,5,I want to set an alarm when I'm driving home tomorrow to remember to stop at the store and
+stop,UNKNOWN,1,Stop and reply to Marlene's most recent email.
+stop,WEATHER,2,Will the snow stop before 7 a.m. tomorrow?
+kitchen,LIGHT_DIM,18,dim the lights in the kitchen
+kitchen,LIGHT_OFF,254,turn the lights off in the kitchen
+kitchen,LIGHT_ON,303,turn on the kitchen lights
+living,LIGHT_DIM,26,Dim the living room lights
+living,UNKNOWN,3,Look up the number of people living in Miami for a rate.
+bedroom,LIGHT_DIM,11,Dim the lights in my bedroom.
+bedroom,LIGHT_OFF,238,turn the bedroom lights off
+bedroom,LIGHT_ON,205,Turn on the lights in the bedroom
+bathroom,LIGHT_OFF,8,Switch off the bathroom light
+bathroom,LIGHT_ON,146,Turn the bathroom lights on.
+room,LIGHT_DIM,26,Dim the living room lights
+room,LIGHT_OFF,1,Turn off the worst room lights
+room,LIGHT_ON,3,Turn the watch room lights on
+room,SET_ALARM,2,Set the lock for me in your room.
+room,SET_TEMPERATURE,89,Set the room temperature to 24 degrees.
+room,UNKNOWN,1,How much is room 90 after subtracting 4 from 8?
+room,WEATHER,1,How was it like to be in this room?
+outside,WEATHER,39,"PDA, how is the weather outside?"
+tonight,UNKNOWN,7,"Press an email. Say, do you have any plans tonight? Want to go for dinner?"
+tonight,WEATHER,14,Is it supposed to rain tonight?
+tomorrow,SET_ALARM,100,Set alarm for 8am tomorrow.
+tomorrow,UNKNOWN,14,That was the subject of my last email to tomorrow.
+tomorrow,WEATHER,102,Is it going to rain tomorrow?
+today,SET_ALARM,11,turn on alarm for 330 p.m. today
+today,UNKNOWN,84,Tell me what happened today from 8am to 9am.
+today,WEATHER,218,What was the weather report for today?
+percent,UNKNOWN,1,What it takes to eat great within one three-percent.
+degrees,SET_TEMPERATURE,594,Set temperature to 20 degrees.
+degrees,WEATHER,3,Will the weather be less than 10 degrees in Eastern Texas?
+am,SET_ALARM,106,set the alarm for 9.45am
+am,TIME,1,I am telling you the time it is.
+am,UNKNOWN,18,Tell me what happened today from 8am to 9am.
+am,VOLUME_DOWN,1,I am down.
+am,WEATHER,16,Do I require a winter jacket this AM?
+pm,SET_ALARM,55,Set my alarm for 2 10 PM.
+pm,UNKNOWN,10,Between 10pm and 9am all emails received is to be replied to.
+pm,WEATHER,1,Give me the weather for Morissette at 3pm.
+seconds,SET_TIMER,294,Start timer for 19 seconds
+seconds,UNKNOWN,1,Give me the description of Laptop Seconds.
+minutes,SET_ALARM,13,Set an alarm for five minutes from now.
+minutes,SET_TIMER,405,Start timer for 2 hours 8 minutes
+minutes,UNKNOWN,6,Have I received new emails in the last 10 minutes?
+hours,SET_ALARM,36,Say I'm not alone for 2 hours from now.
+hours,SET_TIMER,83,Start timer for 2 hours 8 minutes
+hours,UNKNOWN,18,Find me any new news from Silky in the last six hours.
+wake,SET_ALARM,134,wake me up at 5 a.m. this week
+alarm,SET_ALARM,731,set the alarm for 9.45am
+louder,VOLUME_UP,237,Make it louder
+quieter,VOLUME_DOWN,97,Quieter.
+mute,TIME,2,Mute to current time.
+mute,UNKNOWN,2,He gave me my Facebook mute every three hours.
+volume,VOLUME_DOWN,609,volume down
+volume,VOLUME_UP,517,Volume up.
+dim,LIGHT_DIM,196,dim lights.
+dim,UNKNOWN,1,"Alisa, give me everything you know about Bob Dim."
+bright,LIGHT_DIM,14,It is too bright in here dim the lights.
+bright,WEATHER,3,Should I bring my bright rock today?

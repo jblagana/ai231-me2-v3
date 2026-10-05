@@ -1,0 +1,1 @@
+cdf4f3bfac35ae947b46e4e767f935453810549779ac3290e05a6754aee627e5  2026-09-15-raspios-trixie-arm64-lite.img.xz
