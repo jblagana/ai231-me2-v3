@@ -1,20 +1,22 @@
-# data corpus (4 GB) — gitignored; small metadata artifacts stay tracked
+# data corpus (4 GB) ï¿½ gitignored; small metadata artifacts stay tracked
 data/*
 !data/*.txt
 !data/*.xlsx
 !data/manifests/
 !data/mel_buffers/
-# training outputs / checkpoints — released separately
+# training outputs / checkpoints ï¿½ released separately
 runs/
 *.pt
 !models/me2_vcm_v3.onnx
 !models/me2_vcm_v3.meta.json
+!models/me2_vcm_v3_wake.onnx
+!models/me2_vcm_v3_wake.meta.json
 # legacy V2 archive: code + docs tracked; the V2 dataset (WAVs) stays out
 legacy/v2/data/pi_music/
 legacy/v2/data/pi_takes/
 legacy/v2/data/pi_pkg_v2e_ep800/
 *.wav
-# third-party benchmark — clone separately (see README); avoid a drifting copy
+# third-party benchmark ï¿½ clone separately (see README); avoid a drifting copy
 third_party/
 *.zip
 # env / caches / OS

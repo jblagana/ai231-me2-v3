@@ -1,0 +1,17 @@
+{
+ "model": "bcresnet",
+ "n_classes": 2,
+ "classes": [
+  "no_wake",
+  "wake"
+ ],
+ "threshold": 0.5,
+ "opset": 17,
+ "sr": 16000,
+ "in_samples": 48000,
+ "window_s": 3.0,
+ "n_mels": 80,
+ "n_frames": 150,
+ "params": 28964,
+ "ckpt": "C:\\Users\\Jan\\Muji\\scratch\\vcm_wake_bcresnet_best.pt"
+}
