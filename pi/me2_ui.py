@@ -138,7 +138,9 @@ DEV = {
     "chips": deque(maxlen=6),  # (text, ts)
     "speaking_until": 0.0,     # TTS self-trigger window (pi_demo guard)
 }
-_LAST_FIRE = {}  # (cmd, slot) -> ts, 2 s debounce (ACTUATION guardrail)
+_LAST_FIRE = {}  # (cmd, slot) -> ts, 0.5 s debounce (was 2 s; speaker has
+# auto echo cancellation — the scaling self-trigger guard is the real
+# double-fire protection, so a fast re-fire of the same command is safe)
 
 
 def add_chip(text: str):
@@ -467,6 +469,12 @@ def _weather_reply():
         cond = str(w.get("condition") or "all good").strip().capitalize()
         return (f"{cond}, {w['temp']:.0f}°",
                 f"{cond}, {_int_words(w['temp'])} degrees")
+    if w and w.get("temp") is not None:
+        # Offline but the last fetch is <=15 min old: the caller speaks
+        # apology + stale-lead clips, then this cached data as the tail.
+        cond = str(w.get("condition") or "all good").strip().capitalize()
+        return (f"{cond}, {w['temp']:.0f}° (15 min old)",
+                f"{cond}, {_int_words(w['temp'])} degrees")
     return ("Sorry, no internet connection.",
             "Sorry, no internet connection.")
 
@@ -576,24 +584,73 @@ def _speak_synth(text: str):
     return None
 
 
-def speak(text: str) -> bool:
-    """Answer out loud on the M1A. Music ducks (pause -> speak -> resume).
-    Best-effort: any failure just means no voice — the chip already has
-    the text. Called from apply_fire (STATE["lock"] held); the critical
-    sections here stay short (same note as the music section)."""
+# ---------------------------------------------------------------- clips
+# Pre-recorded reply clips (en-US-RogerNeural, 48k mono s16 WAVs in
+# ./clips/, generated 2026-10-05): instant, offline, zero synth latency.
+# Every command fires its clip first; a missing clip file degrades to the
+# plain-TTS fallback, never to silence.
+CLIP_DIR = Path(__file__).resolve().parent / "clips"
+CLIP = {
+    "PLAY_MUSIC": "play_music", "PAUSE": "pause", "RESUME": "resume",
+    "NEXT": "next", "STOP": "stop", "VOLUME_UP": "volume_up",
+    "VOLUME_DOWN": "volume_down", "LIGHT_ON": "light_on",
+    "LIGHT_OFF": "light_off", "CALL": "call", "MESSAGE": "message",
+    "OUT_OF_SCOPE": "oos", "TIME": "time_lead", "WEATHER": "weather_lead",
+    "BRIGHTNESS": {"20 percent": "brightness_20",
+                   "60 percent": "brightness_60",
+                   "100 percent": "brightness_100"},
+    "COLOR": {"red": "color_red", "blue": "color_blue",
+              "green": "color_green"},
+    "TEMPERATURE": {"18 degrees": "temp_18", "22 degrees": "temp_22",
+                    "26 degrees": "temp_26"},
+    "TIMER": {"10 seconds": "timer_10", "30 seconds": "timer_30",
+              "1 minute": "timer_60"},
+    "ALARM": {"6 AM": "alarm_6am", "8 AM": "alarm_8am",
+              "9 PM": "alarm_9pm"},
+    "CREATE_REMINDER": {"drink water": "reminder_drink",
+                        "study": "reminder_study",
+                        "exercise": "reminder_exercise"},
+}
+
+
+def _clip_name(cmd: str, slot: str) -> str | None:
+    """(cmd, slot) -> main clip base name (no .wav), or None => plain TTS."""
+    m = CLIP.get(cmd)
+    if m is None:
+        return None
+    if isinstance(m, dict):
+        return m.get(slot)
+    return m
+
+
+def _clip_path(name: str) -> str | None:
+    p = CLIP_DIR / f"{name}.wav"
+    return str(p) if p.exists() else None
+
+
+def _speak_spawn(segs: list, est_s: float) -> bool:
+    """Play segs = [(wav_path | None, text | None), ...] in order through
+    the M1A worker (None wav = synthesize text via edge-tts/espeak at
+    spawn time). Music ducks; the self-trigger guard scales with the
+    estimated total reply length (clips are 1.5-3.5 s each; a 2-clip
+    reply + TTS tail runs past the old fixed 6.5 s window)."""
     import subprocess
+    wavs = []
+    for wav, text in segs:
+        if wav is None:
+            wav = _speak_synth(text)
+            if wav is None:
+                return False
+        wavs.append(wav)
     with _TTS["lock"]:
         p = _TTS["proc"]
         if p is not None and p.poll() is None:
             return False  # already talking — don't stack replies
-        wav = _speak_synth(text)
-        if wav is None:
-            return False
         ducked = False
         if DEV["music"]["playing"] and not DEV["music"]["paused"]:
             ducked = _music_pause()
         dev = _music_dev()
-        argv = [sys.executable, str(_music_worker()), wav, "0"]
+        argv = [sys.executable, str(_music_worker()), *wavs, "0"]
         if dev is not None:
             argv.append(str(dev))
         try:
@@ -605,14 +662,49 @@ def speak(text: str) -> bool:
                 _music_resume()
             return False
         _TTS["proc"] = proc
-        # TTS self-trigger window (pi_demo guard): the reply audio hits
-        # the M1A mic and the wake gate hears it — live-verified 10-02
-        # (one reply drove 3 fake fires, incl. play_music conf 0.9998).
-        # pi_demo suppresses wakes + fires while this is in the future.
-        STATE["speaking_until"] = time.time() + _SPEAK_GUARD_S
+        STATE["speaking_until"] = time.time() + max(
+            _SPEAK_GUARD_S, est_s + 2.5)
     threading.Thread(target=_speak_monitor, args=(ducked,),
                      daemon=True).start()
     return True
+
+
+def _clip_dur_s(path: str) -> float:
+    try:
+        import wave
+        with wave.open(path, "rb") as wf:
+            return wf.getnframes() / float(wf.getframerate())
+    except Exception:
+        return 2.0
+
+
+def speak_clips(names: list, tail: str | None = None) -> bool:
+    """Pre-recorded reply: play the named clips (base names, no .wav) in
+    order, then an optional TTS tail (live data: time / weather). Every
+    named clip missing from disk => plain TTS of the tail (old behavior);
+    nothing to say => no voice (chip only). Called from apply_fire
+    (STATE["lock"] held). Never raises."""
+    try:
+        paths = [_clip_path(n) for n in names if n]
+        if names and not all(paths):
+            paths = []  # partial clip set => full TTS fallback
+        segs = [(p, None) for p in paths]
+        est = sum(_clip_dur_s(p) for p in paths)
+        if tail:
+            segs.append((None, tail))
+            est += 4.5
+        if not segs:
+            return False
+        return _speak_spawn(segs, est)
+    except Exception as e:
+        print(f"speak_clips: {e}", file=sys.stderr)
+        return False
+
+
+def speak(text: str) -> bool:
+    """Plain TTS reply out loud on the M1A (kept for future free-text
+    answers). Same duck/guard/monitor machinery as speak_clips()."""
+    return _speak_spawn([(None, text)], 4.5)
 
 
 def _speak_monitor(ducked: bool):
@@ -658,11 +750,12 @@ def apply_fire(f: dict) -> str:
         # Learned rejection (20th class) — the model's no-action path.
         # Distinct from the confidence gate: the MODEL said "not a command".
         add_chip(f"out of scope ({conf:.2f})")
+        speak_clips([_clip_name(cmd, slot)])
         return "oos"
     if conf < 0.50:  # confidence gate (ACTUATION)
         add_chip(f"heard something ({conf:.2f}) — below gate")
         return "gated"
-    if cmd != "SET_VOLUME" and now - _LAST_FIRE.get((cmd, slot), 0.0) < 2.0:
+    if cmd != "SET_VOLUME" and now - _LAST_FIRE.get((cmd, slot), 0.0) < 0.5:
         return "debounced"
     _LAST_FIRE[(cmd, slot)] = now
 
@@ -677,14 +770,18 @@ def apply_fire(f: dict) -> str:
         if not _music_play(track):  # real audio (instruction 15)
             m["playing"] = False  # fail-soft: don't claim it's playing
             add_chip(f"music: no audio for “{track}”")
+        else:
+            speak_clips([_clip_name(cmd, slot)])
     elif cmd == "VOLUME_UP":
         DEV["music"]["vol"] = min(100, DEV["music"]["vol"] + 20)
         _apply_alsa_volume(DEV["music"]["vol"])
         add_chip(f"volume {DEV['music']['vol']}")
+        speak_clips([_clip_name(cmd, slot)])
     elif cmd == "VOLUME_DOWN":
         DEV["music"]["vol"] = max(0, DEV["music"]["vol"] - 20)
         _apply_alsa_volume(DEV["music"]["vol"])
         add_chip(f"volume {DEV['music']['vol']}")
+        speak_clips([_clip_name(cmd, slot)])
     elif cmd == "SET_VOLUME":
         # UI slider: set the M1A HW volume to the exact value. The
         # 1 Hz sync loop keeps the tile in lockstep with the HW.
@@ -705,6 +802,7 @@ def apply_fire(f: dict) -> str:
                    if m["track"] in SONGS else random.choice(SONGS))
             m.update(playing=True, paused=False, track=nxt)
             _music_play(nxt)
+            speak_clips([_clip_name(cmd, slot)])
     elif cmd == "PAUSE":
         # ONE-WAY (2026-10-03): "pause music" always stops, never resumes.
         # It was a toggle before — the wake-duck pauses the music on "hey
@@ -717,10 +815,13 @@ def apply_fire(f: dict) -> str:
         if m["playing"] and not m["paused"]:
             _music_pause()
             m.update(playing=False, paused=True, user_paused=True)
+            speak_clips([_clip_name(cmd, slot)])
         elif m["paused"]:
             m.update(playing=False, user_paused=True)
+            speak_clips([_clip_name(cmd, slot)])
         else:
             add_chip("nothing to pause")
+            speak_clips([_clip_name(cmd, slot)])
     elif cmd == "RESUME":
         # "resume music" — relaunch from the paused sample offset.
         m = DEV["music"]
@@ -728,6 +829,7 @@ def apply_fire(f: dict) -> str:
             if _music_resume():
                 m.update(playing=True, paused=False, user_paused=False)
                 _DUCK.update(awake=False, defer=False)
+                speak_clips([_clip_name(cmd, slot)])
             else:
                 m.update(paused=False, user_paused=False)
                 add_chip("nothing to resume")
@@ -741,6 +843,7 @@ def apply_fire(f: dict) -> str:
                 _M["track"] = None
                 _M["pos"] = 0
             m.update(playing=False, paused=False, track=None, user_paused=False)
+            speak_clips([_clip_name(cmd, slot)])
         else:
             add_chip("nothing playing")
     # --- lighting ---
@@ -748,43 +851,64 @@ def apply_fire(f: dict) -> str:
         L = DEV["lights"]; L["on"] = True
         if not L["level"]:
             L["level"] = 70
+        speak_clips([_clip_name(cmd, slot)])
     elif cmd == "LIGHT_OFF":
         DEV["lights"]["on"] = False
+        speak_clips([_clip_name(cmd, slot)])
     elif cmd == "BRIGHTNESS":
         p = _bright_pct(slot)
         if p is not None:
             L = DEV["lights"]; L["on"] = True; L["level"] = p
+            speak_clips([_clip_name(cmd, slot)])
     elif cmd == "COLOR":
         c = _lamp_color(slot)
         if c:
             L = DEV["lights"]; L["color"] = c; L["on"] = True
+            speak_clips([_clip_name(cmd, slot)])
     # --- temperature ---
     elif cmd == "TEMPERATURE":
         d = _temp_deg(slot)
         if d is not None:
             DEV["temp"]["target"] = d
+            speak_clips([_clip_name(cmd, slot)])
     # --- information ---
     elif cmd == "TIME":
-        chip, speak_text = _time_reply(); add_chip(chip); speak(speak_text)
+        # Pre-record lead-in (Roger) + TTS tail (live clock).
+        chip, speak_text = _time_reply()
+        add_chip(chip)
+        speak_clips([_clip_name(cmd, slot)], tail=speak_text)
     elif cmd == "WEATHER":
-        chip, speak_text = _weather_reply(); add_chip(chip); speak(speak_text)
+        chip, speak_text = _weather_reply()
+        add_chip(chip)
+        if STATE.get("weather_online"):
+            # All-TTS reply (2026-10-06): no lead clip, no glue — weather
+            # is internet-dependent anyway, so the TTS round-trip is
+            # already in the path. "The weather is sunny, 29 degrees."
+            speak_clips([], tail="The weather is " + speak_text)
+        else:
+            # Offline: default clip only — no glue, no stale tail.
+            speak_clips(["no_internet"])
     # --- timers & alarms ---
     elif cmd == "TIMER":
         secs = _timer_secs(slot)
         if secs:
             DEV["timer"] = {"until": now + secs, "secs": secs,
                             "mins": secs / 60.0, "done": False}
+            speak_clips([_clip_name(cmd, slot)])
     elif cmd == "ALARM":
         mark = _alarm_mark(slot)
         if mark and mark not in DEV["alarms"]:
             DEV["alarms"].append(mark)
             DEV["alarms"].sort()
             DEV["alarms"] = DEV["alarms"][:20]
+            speak_clips([_clip_name(cmd, slot)])
     # --- communication ---
     elif cmd == "CALL":
         add_chip("dialing…")
+        speak_clips([_clip_name(cmd, slot)])
     elif cmd == "MESSAGE":
         add_chip("opening messages…")
+        speak_clips([_clip_name(cmd, slot)])
     # --- reminders (structured: {text, done, ts}) ---
     elif cmd == "CREATE_REMINDER":
         if slot:
@@ -792,6 +916,7 @@ def apply_fire(f: dict) -> str:
                 DEV["reminders"].insert(0,
                     {"text": slot, "done": False, "ts": time.time()})
                 DEV["reminders"] = DEV["reminders"][:20]
+                speak_clips([_clip_name(cmd, slot)])
     elif cmd == "LIST_REMINDERS":
         open_r = [r["text"] for r in DEV["reminders"] if not r["done"]]
         add_chip("reminders: " + (", ".join(open_r) if open_r else "none") + "…")

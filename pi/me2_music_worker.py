@@ -31,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 import wave
+import numpy as np
 
 # ALSA device spec: plughw handles format conversion (mono→stereo if the
 # hardware wants it), so we don't need to match the native channel count.
@@ -41,6 +42,14 @@ ALSA_DEV = "plughw:CARD=M1A,DEV=0"
 # brief "device busy" window. 3 tries × 500 ms = 1.5 s is generous.
 RETRIES = 3
 RETRY_SLEEP_S = 0.5
+
+# Lead-in silence prepended to every stream. The M1A's USB output drops
+# the first ~200-300 ms of a freshly-opened aplay (USB first-buffer loss),
+# and the pre-recorded clips start with speech at sample 0 — so the dropped
+# samples WERE the opening syllables ("The weather is" -> "ther is",
+# "Pause" -> "se" — voice-confirmed 2026-10-05). Prepend silence so the
+# dropped head is silence, not speech. Tunable: bump if a clip still clips.
+WARMUP_S = 0.35
 
 # aplay subprocess (set during play, cleared on exit)
 _aplay_proc = None
@@ -74,7 +83,6 @@ def m1a_present() -> bool:
 
 def load(path: str):
     """Load a 16-bit PCM wav, downmix to mono. Returns (arr, sr)."""
-    import numpy as np
     with wave.open(path, "rb") as wf:
         nch, sw, sr = wf.getnchannels(), wf.getsampwidth(), wf.getframerate()
         if sw != 2:
@@ -85,10 +93,37 @@ def load(path: str):
     return arr, sr
 
 
+def _trim_silence(arr, sr, side, thr=300, max_ms=None, keep_ms=50):
+    """Trim up to max_ms of silence off one end (side='head'|'tail'),
+    always leaving at least keep_ms of glue so the splice isn't abrupt.
+    No-op if speech is inside the keep margin. (2026-10-06: kills the
+    audible gap between the pre-recorded lead clip and the TTS tail -
+    edge-tts pads both ends of its output with silence.)"""
+    n = len(arr)
+    if n == 0:
+        return arr
+    n_max = min(n, int(sr * (max_ms or (1500 if side == "tail" else 600)) / 1000.0))
+    n_keep = int(sr * keep_ms / 1000.0)
+    hit = np.nonzero(np.abs(arr) > thr)[0]
+    if len(hit):
+        s = int(hit[0]) if side == "head" else (n - int(hit[-1]) - 1)
+        cut = max(0, min(s, n_max) - n_keep)  # trim down to keep_ms of glue
+    else:
+        cut = n - n_keep  # all silence: shrink to the glue
+    cut = min(max(cut, 0), n - n_keep)
+    return arr[cut:] if side == "head" else arr[:n - cut]
+
+
 def write_slice_wav(arr, sr, start_sample):
-    """Write arr[start_sample:] to a temp wav file. Returns the path."""
-    import numpy as np
+    """Write arr[start_sample:] to a temp wav file. Returns the path.
+
+    Prepends WARMUP_S of silence (see WARMUP_S): the M1A drops the first
+    ~200-300 ms of a freshly-opened stream, so the dropped head must be
+    silence, not the opening syllables of speech."""
     data = arr[start_sample:]
+    warm = int(WARMUP_S * sr)
+    if warm > 0:
+        data = np.concatenate([np.zeros(warm, dtype=np.int16), data])
     tmp = tempfile.mktemp(suffix=".wav", prefix="me2_play_")
     with wave.open(tmp, "wb") as wf:
         wf.setnchannels(1)
@@ -115,17 +150,25 @@ def play_aplay(wav_path: str) -> int:
 
 def main(argv) -> int:
     if len(argv) < 3:
-        print("usage: me2_music_worker.py <wav> <start_sample> [device]",
+        print("usage: me2_music_worker.py <wav> [<wav> ...] <start_sample> [device]",
               file=sys.stderr)
         return 2
 
-    wav, start = argv[1], int(argv[2])
-    # argv[3] (device_index) is the PortAudio device index — ignored in
+    # Multi-wav (2026-10-05): the TTS reply path plays a pre-recorded
+    # clip + a synthesized tail as one worker invocation — argv holds
+    # every wav path, then the start_sample (applied to the FIRST wav
+    # only; later wavs play in full, back to back, no re-open gap).
+    # Disambiguation: wav args are existing files, start_sample is a
+    # number — so argv[2] that is a file means "second wav" (the old
+    # single-wav form [wav, start, dev] still parses: start is not a file).
+    wavs = [argv[1]]
+    i = 2
+    while i < len(argv) and os.path.isfile(argv[i]):
+        wavs.append(argv[i])
+        i += 1
+    start = int(argv[i])
+    # argv[i+1] (device_index) is the PortAudio device index — ignored in
     # the ALSA backend (we hardcode ALSA_DEV). Kept for interface compat.
-
-    if not os.path.isfile(wav):
-        print(f"me2_music_worker: no such file: {wav}", file=sys.stderr)
-        return 2
 
     # Install SIGTERM handler before any blocking work
     signal.signal(signal.SIGTERM, _sigterm_handler)
@@ -136,9 +179,25 @@ def main(argv) -> int:
               file=sys.stderr)
         return 3
 
-    # Load and slice
+    # Load and slice (first wav sliced from start; the rest play in full)
     try:
-        arr, sr = load(wav)
+        arr, sr = load(wavs[0])
+        if len(wavs) > 1:
+            for w in wavs[1:]:
+                extra, sr2 = load(w)
+                if sr2 != sr:
+                    # resample to the first wav's rate (linear; the TTS
+                    # path only ever mixes 48k clips with 48k synth)
+                    n = int(len(extra) * sr / float(sr2))
+                    x = np.linspace(0.0, len(extra) - 1, n)
+                    extra = np.interp(x, np.arange(len(extra)),
+                                      extra).astype(np.int16)
+                # splice trim (2026-10-06): edge-tts pads both ends of
+                # its output with silence; clip tail + tail head = the
+                # audible gap. Trim each side, keep 50 ms of glue.
+                arr = _trim_silence(arr, sr, "tail")
+                extra = _trim_silence(extra, sr, "head")
+                arr = np.concatenate([arr, extra])
     except Exception as e:
         print(f"me2_music_worker: load failed: {e}", file=sys.stderr)
         return 1

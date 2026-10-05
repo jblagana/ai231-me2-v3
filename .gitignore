@@ -16,6 +16,10 @@ legacy/v2/data/pi_music/
 legacy/v2/data/pi_takes/
 legacy/v2/data/pi_pkg_v2e_ep800/
 *.wav
+# pre-recorded reply clips (Pi voice responses, 48k mono s16, ~7.7 MB —
+# needed to re-flash the Pi; generated 2026-10-05, en-US-RogerNeural)
+!pi/clips/
+!pi/clips/*.wav
 # third-party benchmark � clone separately (see README); avoid a drifting copy
 third_party/
 *.zip

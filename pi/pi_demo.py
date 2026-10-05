@@ -181,7 +181,7 @@ class Demo:
 
     def capture_command(self, device=None, min_rms: float = 0.004,
                         warmup_ms: int = 200, silence_ms: int = 700,
-                        max_ms: int = 3500):
+                        max_ms: int = 3500, empty_bail_ms: int = 1000):
         """After the wake fires: listen for the command. Returns (48000,)
         right-aligned float32, or None if nothing was heard.
 
@@ -191,7 +191,14 @@ class Demo:
         were cut mid-word ('set a ta', 'dim the', 'remind me to ba').
         silence_ms: how long the user may pause mid-phrase before we end
         the capture (600 cut real pauses; 1000 is safer, +400 ms latency
-        on short commands)."""
+        on short commands).
+        empty_bail_ms: bail with None after this much capture time if NO
+        voiced frame ever occurred (2026-10-05) — an empty 'hey boots'
+        used to ride the full max_ms (3500 ms) because the silence
+        early-stop needs prior voiced audio; 1000 ms collapses the deaf
+        window from ~5.7 s to ~3 s. Real commands start speaking well
+        under 1 s after the warm-up, so the cap stays for actual
+        phrases."""
         frame = int(SR * FRAME_MS / 1000.0)
         for _ in range(int(warmup_ms / FRAME_MS)):
             self.capture(device, frames=frame)  # drop the 'boots' tail
@@ -200,10 +207,12 @@ class Demo:
         voiced_ms = 0
         heard = False
         why = "cap"
+        elapsed_ms = 0
         for _ in range(int(max_ms / FRAME_MS)):
             x = self.capture(device, frames=frame)
             rms = float(np.sqrt((x ** 2).mean()))
             chunks.append(x)
+            elapsed_ms += FRAME_MS
             if rms >= min_rms:
                 heard = True
                 voiced_ms += FRAME_MS
@@ -212,6 +221,14 @@ class Demo:
                 silent_ms += FRAME_MS
             if heard and silent_ms >= silence_ms:
                 why = "silence"
+                break
+            if not heard and elapsed_ms >= empty_bail_ms:
+                # Early bail on total silence (2026-10-05): nothing was
+                # ever voiced, so riding to max_ms only delays the
+                # 2 s empty-capture cooldown by (max_ms - empty_bail_ms)
+                # ms. The silence early-stop above can't fire here
+                # (it needs prior voiced audio).
+                why = "empty"
                 break
         # Need >= 300 ms of ACTUAL voiced audio: the VCM has no "nothing"
         # class, so a 30 ms noise blip would otherwise fire a
@@ -230,7 +247,7 @@ class Demo:
         return wav
 
     def beep(self, device=None, freq: float = 880.0, ms: int = 250,
-             amp: float = 0.50, windowed: bool = True):
+             amp: float = 0.50, windowed: bool = True, lead_ms: int = 0):
         """Ack/fire beep. Plays at the OUTPUT device's native rate (USB
         audio like the EMEET M1A often only does 48k, not our 16k SR) and
         never raises — a failed beep must not wedge the state machine.
@@ -248,13 +265,19 @@ class Demo:
         w = amp * 32767 * np.sin(2 * np.pi * freq * t)
         if windowed:
             w = w * np.hanning(n)
-        w = w.astype(np.int16)
+        if lead_ms > 0:
+            # USB-output first-chunk loss: the M1A drops the head of every
+            # freshly-opened stream (~300 ms), so lead with silence - same
+            # fix as WARMUP_S in me2_music_worker.py (2026-10-05).
+            w = np.concatenate([np.zeros(int(sr_out * lead_ms / 1000.0),
+                                         dtype=np.int16), w])
         try:
             sd.play(w, sr_out, device=device, blocking=True)
         except Exception as e:
             print(f"  beep failed: {e}", file=sys.stderr)
 
-    def chirp(self, device, f0: float, f1: float, ms: int, amp: float = 0.90):
+    def chirp(self, device, f0: float, f1: float, ms: int, amp: float = 0.90,
+              lead_ms: int = 0):
         """Linear frequency-sweep tone (the 'boop' of a cute little bot).
         90 % flat amplitude (50 % / hanning measured inaudible on the M1A
         at 500 ms — only >=650 ms @ 90 % passed the audibility ladder),
@@ -272,22 +295,47 @@ class Demo:
         r = max(1, int(0.005 * sr))
         w[:r] *= np.linspace(0.0, 1.0, r)
         w[-r:] *= np.linspace(1.0, 0.0, r)
+        if lead_ms > 0:
+            # USB first-chunk loss - lead with silence (see beep).
+            w = np.concatenate([np.zeros(int(sr * lead_ms / 1000.0),
+                                         dtype=np.int16), w])
         try:
             sd.play(w.astype(np.int16), sr, device=device, blocking=True)
         except Exception as e:
             print(f"  chirp failed: {e}", file=sys.stderr)
 
     def ack_beep(self, device=None):
-        """Wake ack — the HIGHER rising two-note 'boop-boop' (~630 ms)."""
-        self.chirp(device, 700.0, 1200.0, 300)
-        time.sleep(0.03)
-        self.chirp(device, 1000.0, 1600.0, 300)
-
-    def fire_beep(self, device=None):
-        """Command fired — the LOWER rising two-note (~630 ms)."""
-        self.chirp(device, 500.0, 900.0, 300)
-        time.sleep(0.03)
-        self.chirp(device, 900.0, 1500.0, 300)
+        """Wake ack — the HIGHER rising two-note 'boop-boop' (~630 ms).
+        BOTH notes ride ONE sd.play() stream: two separate streams
+        reinitialize the M1A's USB audio pipeline between the notes and
+        that reinit crackle is audible in the gap (2026-10-05). The 350 ms
+        warm-up lead (USB first-chunk loss fix) stays in front of note 1;
+        the 30 ms gap is now silence inside the same stream."""
+        import sounddevice as sd
+        try:
+            sr = int(sd.query_devices(device, "output")["default_samplerate"])
+        except Exception:
+            sr = 48000
+        def _note(f0: float, f1: float, ms: int, amp: float = 0.90):
+            n = int(sr * ms / 1000.0)
+            t = np.arange(n) / sr
+            dur = ms / 1000.0
+            phase = 2 * np.pi * (f0 * t + (f1 - f0) * t * t / (2.0 * dur))
+            w = amp * 32767 * np.sin(phase)
+            r = max(1, int(0.005 * sr))
+            w[:r] *= np.linspace(0.0, 1.0, r)
+            w[-r:] *= np.linspace(1.0, 0.0, r)
+            return w.astype(np.int16)
+        w = np.concatenate([
+            np.zeros(int(sr * 0.350), dtype=np.int16),  # USB warm-up lead
+            _note(700.0, 1200.0, 300),
+            np.zeros(int(sr * 0.030), dtype=np.int16),  # gap, in-stream
+            _note(1000.0, 1600.0, 300),
+        ])
+        try:
+            sd.play(w, sr, device=device, blocking=True)
+        except Exception as e:
+            print(f"  ack_beep failed: {e}", file=sys.stderr)
 
     def save_wav(self, path, wav: np.ndarray):
         """wav float32 [-1,1] -> 16 kHz mono int16 WAV (debug recording —
@@ -447,10 +495,17 @@ def main():
                               f"cmd_{t_wake:.0f}_{res['cmd']}_"
                               f"{res['conf']:.2f}.wav", cmd_wav)
             fire(res)
-            demo.fire_beep(args.device)
+            # fire_beep removed (2026-10-05): the M1A speaker has auto
+            # echo cancellation and the UI's scaling self-trigger guard
+            # is the real double-fire protection — the beep only added
+            # a 3 s cooldown between commands.
             if state_url:
                 post(state_url, {"mode": "idle", "t": time.time()})
-            cooldown = time.time() + 3.0  # our beep would self-trigger
+            # post-fire cooldown: 0.0 (2026-10-05) — the M1A speaker
+            # has auto echo cancellation and the UI's scaling
+            # self-trigger guard + 0.5 s same-command debounce are
+            # the real double-fire protection; back-to-back commands
+            # are now allowed immediately.
         except KeyboardInterrupt:
             print("bye")
             return
